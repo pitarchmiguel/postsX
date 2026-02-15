@@ -3,12 +3,11 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-const dbUrl = process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"];
-if (!dbUrl) {
-  throw new Error(
-    "Missing DATABASE_URL or DIRECT_URL in .env. Add your Supabase connection strings from Project Settings > Database."
-  );
-}
+// Use placeholder during build if env vars not set (e.g. Vercel before env config)
+const dbUrl =
+  process.env["DIRECT_URL"] ??
+  process.env["DATABASE_URL"] ??
+  "postgresql://placeholder:placeholder@localhost:5432/placeholder";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
