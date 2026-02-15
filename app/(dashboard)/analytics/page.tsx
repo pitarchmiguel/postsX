@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { TopPostItem } from "@/components/top-post-item";
 
 export default async function AnalyticsPage() {
   const [topPosts, timeSlots, engagementStats, dayOfWeek] = await Promise.all([
@@ -99,19 +100,13 @@ export default async function AnalyticsPage() {
             ) : (
               <ol className="space-y-2">
                 {topPosts.map((item, i) => (
-                  <li
+                  <TopPostItem
                     key={item.post.id}
-                    className="flex gap-2 rounded-md border border-border p-2"
-                  >
-                    <span className="text-muted-foreground">{i + 1}.</span>
-                    <span className="min-w-0 flex-1 truncate text-sm">
-                      {item.post.text.slice(0, 80)}
-                      {item.post.text.length > 80 ? "..." : ""}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {item.impressions} imp · {item.likes} likes
-                    </span>
-                  </li>
+                    post={item.post}
+                    index={i}
+                    impressions={item.impressions}
+                    likes={item.likes}
+                  />
                 ))}
               </ol>
             )}
