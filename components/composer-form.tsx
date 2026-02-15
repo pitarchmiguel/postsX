@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { MAX_TWEET_LENGTH, DEFAULT_TIMEZONE } from "@/lib/constants";
-import { format, addDays } from "date-fns";
+import { format, addDays, startOfDay } from "date-fns";
 import { toast } from "sonner";
 import { SaveIcon, CalendarIcon, PlusIcon, TrashIcon } from "lucide-react";
 
@@ -371,7 +371,7 @@ export function ComposerForm({ searchParams, onSuccess }: ComposerFormProps) {
                   mode="single"
                   selected={scheduledAt ?? undefined}
                   onSelect={(d) => setScheduledAt(d ?? null)}
-                  disabled={(d) => d < new Date()}
+                  disabled={(d) => startOfDay(d) < startOfDay(new Date())}
                 />
                 <div className="flex gap-2 border-t p-2">
                   <Input
