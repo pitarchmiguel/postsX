@@ -21,6 +21,10 @@ if (
     extra.push("pgbouncer=true");
   if (!connectionString.includes("connection_limit="))
     extra.push("connection_limit=1");
+  if (!connectionString.includes("connect_timeout="))
+    extra.push("connect_timeout=30");
+  if (!connectionString.includes("pool_timeout="))
+    extra.push("pool_timeout=30");
   if (extra.length) connectionString += sep + extra.join("&");
 }
 

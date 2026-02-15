@@ -28,8 +28,9 @@ export default async function DashboardPage() {
             Use the <strong>Transaction</strong> pooler (port 6543) in Supabase
             → Database → Connection string. Run{" "}
             <code className="rounded bg-muted px-1">prisma migrate deploy</code>{" "}
-            against your DB. If you see &quot;Circuit breaker&quot;, wait 2–5 min
-            and redeploy.
+            against your DB. If you see &quot;Circuit breaker&quot;: (1) Check if
+            your Supabase project is <strong>paused</strong> — restore it in the
+            dashboard; (2) Wait 5–15 min for the breaker to reset; (3) Redeploy.
           </p>
         </div>
       </div>
