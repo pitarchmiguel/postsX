@@ -21,27 +21,32 @@ export async function getTopPosts(limit = 10) {
   const metrics = await db.metric.findMany({
     include: { post: true },
     where: { post: { status: "PUBLISHED" } },
-    orderBy: { capturedAt: "desc" },
   });
 
-  const byPost = new Map<
-    string,
-    { post: { id: string; text: string }; impressions: number; likes: number; engagement: number }
-  >();
-
+  // Get latest metric per post (same logic as getEngagementStats)
+  const latestMetricsByPost = new Map<string, typeof metrics[0]>();
   for (const m of metrics) {
-    if (byPost.has(m.postId)) continue;
+    const existing = latestMetricsByPost.get(m.postId);
+    if (!existing || m.capturedAt > existing.capturedAt) {
+      latestMetricsByPost.set(m.postId, m);
+    }
+  }
+
+  // Map to post data with engagement calculation
+  const posts = Array.from(latestMetricsByPost.values()).map((m) => {
     const engagement =
       m.impressions + m.likes * 2 + m.replies * 3 + m.reposts * 2 + m.bookmarks;
-    byPost.set(m.postId, {
+    return {
       post: { id: m.post.id, text: m.post.text },
       impressions: m.impressions,
       likes: m.likes,
       engagement,
-    });
-  }
+    };
+  });
 
-  return Array.from(byPost.values())
+  // Filter out posts with zero metrics and sort by engagement
+  return posts
+    .filter((post) => post.impressions > 0 || post.likes > 0)
     .sort((a, b) => b.engagement - a.engagement)
     .slice(0, limit);
 }
