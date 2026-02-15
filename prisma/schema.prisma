@@ -1,0 +1,45 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Post {
+  id          String    @id @default(cuid())
+  status      String    // DRAFT | SCHEDULED | PUBLISHED | FAILED
+  text        String
+  threadJson  String?   // JSON array for thread mode
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  tags        String    @default("") // comma-separated or JSON
+  xTweetId    String?   // X API tweet ID after publish
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  metrics     Metric[]
+}
+
+model Metric {
+  id          String   @id @default(cuid())
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  capturedAt  DateTime @default(now())
+  impressions Int      @default(0)
+  likes       Int      @default(0)
+  replies     Int      @default(0)
+  reposts     Int      @default(0)
+  bookmarks   Int      @default(0)
+
+  @@index([postId])
+}
+
+model Setting {
+  id       String   @id @default(cuid())
+  key      String   @unique
+  valueJson String  @default("{}")
+  updatedAt DateTime @updatedAt
+}
