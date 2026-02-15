@@ -25,9 +25,11 @@ export default async function DashboardPage() {
           <p className="font-medium">Unable to connect to the database</p>
           <p className="mt-1 text-muted-foreground">{message}</p>
           <p className="mt-2 text-xs">
-            Check that DATABASE_URL is set correctly in Vercel and that you have
-            run <code className="rounded bg-muted px-1">prisma migrate deploy</code>{" "}
-            against your Supabase database.
+            Use the <strong>Transaction</strong> pooler (port 6543) in Supabase
+            → Database → Connection string. Run{" "}
+            <code className="rounded bg-muted px-1">prisma migrate deploy</code>{" "}
+            against your DB. If you see &quot;Circuit breaker&quot;, wait 2–5 min
+            and redeploy.
           </p>
         </div>
       </div>
