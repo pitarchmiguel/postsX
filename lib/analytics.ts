@@ -37,16 +37,23 @@ export async function getTopPosts(limit = 10) {
     const engagement =
       m.impressions + m.likes * 2 + m.replies * 3 + m.reposts * 2 + m.bookmarks;
     return {
-      post: { id: m.post.id, text: m.post.text },
+      post: { id: m.post.id, text: m.post.text, publishedAt: m.post.publishedAt },
       impressions: m.impressions,
       likes: m.likes,
       engagement,
     };
   });
 
-  // Filter out posts with zero metrics and sort by engagement
+  // Filter: keep posts with metrics > 0, OR recently published (< 4 hours ago)
+  const now = new Date();
+  const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+
   return posts
-    .filter((post) => post.impressions > 0 || post.likes > 0)
+    .filter((post) => {
+      const hasMetrics = post.impressions > 0 || post.likes > 0;
+      const isRecent = post.post.publishedAt && new Date(post.post.publishedAt) > fourHoursAgo;
+      return hasMetrics || isRecent;
+    })
     .sort((a, b) => b.engagement - a.engagement)
     .slice(0, limit);
 }
