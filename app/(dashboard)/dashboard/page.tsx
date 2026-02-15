@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Post } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 import { Button } from "@/components/ui/button";
@@ -93,7 +94,7 @@ export default async function DashboardPage() {
               </p>
             ) : (
               <ul className="space-y-2">
-                {stats.todayQueue.map((post) => (
+                {stats.todayQueue.map((post: Post) => (
                   <li
                     key={post.id}
                     className="flex items-center justify-between rounded-md border border-border p-2"
@@ -126,7 +127,7 @@ export default async function DashboardPage() {
               </p>
             ) : (
               <ul className="space-y-2">
-                {stats.next7Days.slice(0, 7).map((post) => (
+                {stats.next7Days.slice(0, 7).map((post: Post) => (
                   <li
                     key={post.id}
                     className="flex items-center justify-between rounded-md border border-border p-2"
