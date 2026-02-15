@@ -24,12 +24,17 @@ export async function runScheduler(): Promise<{
   });
 
   const simulationMode = await getSimulationMode();
-  const xApiConfigured = await isXApiConfigured();
-  const useSimulation = simulationMode || !xApiConfigured;
 
   for (const post of duePosts) {
     try {
-      const result = await postTweet(post.text, { forceSimulation: useSimulation });
+      // Check X API configuration for this specific user
+      const xApiConfigured = await isXApiConfigured(post.userId);
+      const useSimulation = simulationMode || !xApiConfigured;
+
+      const result = await postTweet(post.userId, post.text, {
+        forceSimulation: useSimulation,
+        communityId: post.communityId,
+      });
       const tweetId = result?.id ?? `mock_${Date.now()}_${post.id}`;
 
       await db.post.update({
@@ -41,7 +46,7 @@ export async function runScheduler(): Promise<{
         },
       });
 
-      const metrics = await getTweetMetrics(tweetId);
+      const metrics = await getTweetMetrics(post.userId, tweetId);
 
       // Extract only the metric fields (exclude source and error)
       const { impressions, likes, replies, reposts, bookmarks } = metrics;
