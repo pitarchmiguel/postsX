@@ -43,8 +43,9 @@ DIRECT_URL="postgres://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.s
 3. Optionally add `DIRECT_URL` (port 5432) for migrations
 3. **Run migrations** against your Supabase DB (once):
    ```bash
-   DATABASE_URL="your-supabase-connection-string" npm run db:migrate
+   npm run db:migrate
    ```
+   If you get &quot;Circuit breaker&quot;, run the SQL in `prisma/migrations/apply-manually.sql` via Supabase → SQL Editor instead.
 4. Redeploy
 
 ## Run Locally
