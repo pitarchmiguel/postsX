@@ -25,12 +25,12 @@ export default async function DashboardPage() {
           <p className="font-medium">Unable to connect to the database</p>
           <p className="mt-1 text-muted-foreground">{message}</p>
           <p className="mt-2 text-xs">
-            Use the <strong>Transaction</strong> pooler (port 6543) in Supabase
-            → Database → Connection string. Run{" "}
-            <code className="rounded bg-muted px-1">prisma migrate deploy</code>{" "}
-            against your DB. If you see &quot;Circuit breaker&quot;: (1) Check if
-            your Supabase project is <strong>paused</strong> — restore it in the
-            dashboard; (2) Wait 5–15 min for the breaker to reset; (3) Redeploy.
+            Supabase → Database → Connection string. Run{" "}
+            <code className="rounded bg-muted px-1">prisma migrate deploy</code>.
+            If &quot;Circuit breaker&quot; persists: try <strong>Session</strong> pooler
+            (port 5432) instead of Transaction (6543) — same URL, change{" "}
+            <code className="rounded bg-muted px-1">:6543</code> to{" "}
+            <code className="rounded bg-muted px-1">:5432</code> in DATABASE_URL.
           </p>
         </div>
       </div>

@@ -38,8 +38,9 @@ DIRECT_URL="postgres://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.s
 
 ## Deploy to Vercel
 
-1. Add `DATABASE_URL` in Vercel → Settings → Environment Variables (use **Transaction** pooler, port 6543)
-2. Optionally add `DIRECT_URL` (direct connection, port 5432) for migrations
+1. Add `DATABASE_URL` in Vercel → Settings → Environment Variables
+2. If you get &quot;Circuit breaker&quot; with Transaction pooler (port 6543), try **Session** pooler (port 5432) instead — same URL but change `:6543` to `:5432`
+3. Optionally add `DIRECT_URL` (port 5432) for migrations
 3. **Run migrations** against your Supabase DB (once):
    ```bash
    DATABASE_URL="your-supabase-connection-string" npm run db:migrate

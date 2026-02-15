@@ -6,18 +6,18 @@ let connectionString =
   process.env.DIRECT_URL ??
   "postgresql://localhost:5432/postgres";
 
-// Supabase: optimize for serverless to avoid circuit breaker / connection exhaustion
+// Supabase: optimize for serverless to avoid circuit breaker
 if (
   connectionString.includes("supabase.com") ||
   connectionString.includes("supabase.co")
 ) {
   const sep = connectionString.includes("?") ? "&" : "?";
   const extra: string[] = [];
-  // Pooler (port 6543) needs pgbouncer=true for Prisma
-  if (
+  // Transaction pooler (port 6543) requires pgbouncer=true; Session (5432) does not
+  const isTransactionPooler =
     connectionString.includes("pooler.supabase.com") &&
-    !connectionString.includes("pgbouncer=")
-  )
+    connectionString.includes(":6543/");
+  if (isTransactionPooler && !connectionString.includes("pgbouncer="))
     extra.push("pgbouncer=true");
   if (!connectionString.includes("connection_limit="))
     extra.push("connection_limit=1");
