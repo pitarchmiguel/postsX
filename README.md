@@ -26,6 +26,10 @@ A minimal, dark, mobile-first dashboard to schedule and manage X (Twitter) posts
 DATABASE_URL="postgres://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
 DIRECT_URL="postgres://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres"
 
+# Supabase Auth (required for login - same project as DB)
+NEXT_PUBLIC_SUPABASE_URL="https://[PROJECT-REF].supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="[anon-key from Dashboard > Connect]"
+
 # X API (optional - or configure in Settings UI)
 # X_CLIENT_ID=
 # X_CLIENT_SECRET=
@@ -73,7 +77,7 @@ npm run db:seed
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/dashboard`.
+Open [http://localhost:3000](http://localhost:3000). Sign in with Google or email to access the dashboard.
 
 ## Vercel Cron
 
@@ -108,6 +112,14 @@ For real posting, you need **OAuth 2.0 User Context** tokens—**not** Applicati
 5. Click **Connect with X** to sign in and obtain tokens (no manual token entry needed)
 
 Scopes: `tweet.read`, `tweet.write`, `users.read`.
+
+## Auth Setup (Supabase)
+
+1. In Supabase Dashboard → Authentication → URL Configuration, add:
+   - Site URL: `http://localhost:3000` (dev) or your production URL
+   - Redirect URLs: `http://localhost:3000/auth/callback`, `https://your-domain.com/auth/callback`
+2. For Google sign-in: Authentication → Providers → Google → enable and add Client ID + Secret from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+3. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` to `.env` (from Dashboard → Connect)
 
 ## License
 

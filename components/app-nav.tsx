@@ -8,6 +8,7 @@ import {
   PenSquareIcon,
   BarChart3Icon,
   SettingsIcon,
+  LogOutIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,12 @@ export function AppNav() {
             </Button>
           );
         })}
+        <form action="/auth/signout" method="post" className="ml-auto hidden md:block">
+          <Button variant="ghost" size="sm" type="submit" className="text-muted-foreground">
+            <LogOutIcon className="size-4" />
+            <span className="sr-only md:not-sr-only md:ml-2">Salir</span>
+          </Button>
+        </form>
       </div>
     </nav>
   );
