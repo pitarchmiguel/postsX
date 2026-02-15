@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { getDashboardStats } from "@/lib/dashboard";
 import { RunSchedulerButton } from "@/components/run-scheduler-button";
 import { CreatePostDialog } from "@/components/create-post-dialog";
+import { SchedulerPoll } from "@/components/scheduler-poll";
 import { format } from "date-fns";
 
 export default async function DashboardPage() {
@@ -86,6 +87,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Automatic scheduler polling - publishes posts every minute */}
+      <SchedulerPoll />
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <div className="flex gap-2">
