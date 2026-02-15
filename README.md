@@ -36,6 +36,16 @@ DIRECT_URL="postgres://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.s
 # CRON_SECRET=
 ```
 
+## Deploy to Vercel
+
+1. Add `DATABASE_URL` in Vercel → Settings → Environment Variables (use **Transaction** pooler, port 6543)
+2. Optionally add `DIRECT_URL` (direct connection, port 5432) for migrations
+3. **Run migrations** against your Supabase DB (once):
+   ```bash
+   DATABASE_URL="your-supabase-connection-string" npm run db:migrate
+   ```
+4. Redeploy
+
 ## Run Locally
 
 1. Create a [Supabase](https://supabase.com) project

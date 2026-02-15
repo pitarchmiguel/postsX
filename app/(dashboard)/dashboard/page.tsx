@@ -12,7 +12,27 @@ import { CreatePostDialog } from "@/components/create-post-dialog";
 import { format } from "date-fns";
 
 export default async function DashboardPage() {
-  const stats = await getDashboardStats();
+  let stats;
+  try {
+    stats = await getDashboardStats();
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Database connection failed";
+    return (
+      <div className="space-y-6">
+        <h1 className="text-xl font-semibold">Dashboard</h1>
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          <p className="font-medium">Unable to connect to the database</p>
+          <p className="mt-1 text-muted-foreground">{message}</p>
+          <p className="mt-2 text-xs">
+            Check that DATABASE_URL is set correctly in Vercel and that you have
+            run <code className="rounded bg-muted px-1">prisma migrate deploy</code>{" "}
+            against your Supabase database.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const formatTime = (date: Date) => format(new Date(date), "HH:mm");
   const formatDate = (date: Date) => format(new Date(date), "EEE d MMM");
