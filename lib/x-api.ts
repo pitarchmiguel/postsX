@@ -120,25 +120,35 @@ export async function postTweet(
   }
 }
 
-export async function getTweetMetrics(tweetId: string): Promise<{
+export type MetricsSource = "real" | "simulated" | "unavailable";
+
+export interface TweetMetrics {
   impressions: number;
   likes: number;
   replies: number;
   reposts: number;
   bookmarks: number;
-}> {
-  const config = await getXApiConfig();
-  if ((!config.accessToken && !config.clientId) || tweetId.startsWith("mock_")) {
+  source: MetricsSource;
+  error?: string;
+}
+
+export async function getTweetMetrics(tweetId: string): Promise<TweetMetrics> {
+  // Mock tweets always return simulated data
+  if (tweetId.startsWith("mock_")) {
     return {
       impressions: Math.floor(Math.random() * 500) + 50,
       likes: Math.floor(Math.random() * 20),
       replies: Math.floor(Math.random() * 5),
       reposts: Math.floor(Math.random() * 5),
       bookmarks: Math.floor(Math.random() * 10),
+      source: "simulated",
     };
   }
 
+  const config = await getXApiConfig();
   const token = config.accessToken;
+
+  // No credentials configured - return unavailable
   if (!token) {
     return {
       impressions: 0,
@@ -146,9 +156,12 @@ export async function getTweetMetrics(tweetId: string): Promise<{
       replies: 0,
       reposts: 0,
       bookmarks: 0,
+      source: "unavailable",
+      error: "No X API credentials configured",
     };
   }
 
+  // Try to fetch real metrics from X API
   try {
     const res = await fetch(
       `${X_API_BASE}/tweets/${tweetId}?tweet.fields=public_metrics`,
@@ -160,19 +173,49 @@ export async function getTweetMetrics(tweetId: string): Promise<{
     );
 
     if (!res.ok) {
-      throw new Error(await res.text());
+      const errorText = await res.text();
+      console.error("X API getTweetMetrics error:", errorText);
+
+      // Handle specific error cases
+      if (res.status === 404) {
+        return {
+          impressions: 0,
+          likes: 0,
+          replies: 0,
+          reposts: 0,
+          bookmarks: 0,
+          source: "unavailable",
+          error: "Tweet not found (may have been deleted)",
+        };
+      }
+
+      if (res.status === 401 || res.status === 403) {
+        return {
+          impressions: 0,
+          likes: 0,
+          replies: 0,
+          reposts: 0,
+          bookmarks: 0,
+          source: "unavailable",
+          error: "Invalid or expired X API credentials",
+        };
+      }
+
+      throw new Error(errorText);
     }
 
     const data = (await res.json()) as {
       data?: { public_metrics?: Record<string, number> };
     };
     const metrics = data.data?.public_metrics ?? {};
+
     return {
       impressions: metrics.impression_count ?? 0,
       likes: metrics.like_count ?? 0,
       replies: metrics.reply_count ?? 0,
       reposts: metrics.retweet_count ?? 0,
       bookmarks: metrics.bookmark_count ?? 0,
+      source: "real",
     };
   } catch (err) {
     console.error("X API getTweetMetrics error:", err);
@@ -182,6 +225,8 @@ export async function getTweetMetrics(tweetId: string): Promise<{
       replies: 0,
       reposts: 0,
       bookmarks: 0,
+      source: "unavailable",
+      error: String(err),
     };
   }
 }

@@ -3,6 +3,10 @@
     {
       "path": "/api/scheduler/run",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/metrics/cron",
+      "schedule": "*/15 * * * *"
     }
   ],
   "functions": {

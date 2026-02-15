@@ -42,10 +42,17 @@ export async function runScheduler(): Promise<{
       });
 
       const metrics = await getTweetMetrics(tweetId);
+
+      // Extract only the metric fields (exclude source and error)
+      const { impressions, likes, replies, reposts, bookmarks } = metrics;
       await db.metric.create({
         data: {
           postId: post.id,
-          ...metrics,
+          impressions,
+          likes,
+          replies,
+          reposts,
+          bookmarks,
         },
       });
 
