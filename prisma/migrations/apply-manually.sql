@@ -1,10 +1,7 @@
 -- Run this in Supabase SQL Editor if "prisma migrate deploy" fails (e.g. circuit breaker)
--- Supabase Dashboard → SQL Editor → New query → paste and Run
---
--- After running, mark the migration as applied locally (optional, for future deploys):
---   npx prisma migrate resolve --applied 20260215100000_supabase_postgres
+-- Safe to run multiple times (idempotent)
 
-CREATE TABLE "Post" (
+CREATE TABLE IF NOT EXISTS "Post" (
     "id" TEXT NOT NULL,
     "status" TEXT NOT NULL,
     "text" TEXT NOT NULL,
@@ -18,7 +15,7 @@ CREATE TABLE "Post" (
     CONSTRAINT "Post_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "Metric" (
+CREATE TABLE IF NOT EXISTS "Metric" (
     "id" TEXT NOT NULL,
     "postId" TEXT NOT NULL,
     "capturedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -30,7 +27,7 @@ CREATE TABLE "Metric" (
     CONSTRAINT "Metric_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "Setting" (
+CREATE TABLE IF NOT EXISTS "Setting" (
     "id" TEXT NOT NULL,
     "key" TEXT NOT NULL,
     "valueJson" TEXT NOT NULL DEFAULT '{}',
@@ -38,6 +35,13 @@ CREATE TABLE "Setting" (
     CONSTRAINT "Setting_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "Setting_key_key" ON "Setting"("key");
-CREATE INDEX "Metric_postId_idx" ON "Metric"("postId");
-ALTER TABLE "Metric" ADD CONSTRAINT "Metric_postId_fkey" FOREIGN KEY ("postId") REFERENCES "Post"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+CREATE UNIQUE INDEX IF NOT EXISTS "Setting_key_key" ON "Setting"("key");
+CREATE INDEX IF NOT EXISTS "Metric_postId_idx" ON "Metric"("postId");
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Metric_postId_fkey') THEN
+        ALTER TABLE "Metric" ADD CONSTRAINT "Metric_postId_fkey"
+            FOREIGN KEY ("postId") REFERENCES "Post"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;

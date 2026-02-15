@@ -16,22 +16,66 @@ export default async function DashboardPage() {
   try {
     stats = await getDashboardStats();
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Database connection failed";
+    // Log full error details for debugging
+    console.error('[Dashboard] Database connection failed:', err);
+    console.error('[Dashboard] Error type:', err?.constructor?.name);
+
+    const message = err instanceof Error ? err.message : String(err);
+    const errorCode = (err as any)?.code;
+    const errorDetails = (err as any)?.meta?.message;
+
+    // Categorize error type for better troubleshooting
+    let errorType = 'Unknown Error';
+    if (message.includes('Circuit breaker') || message.includes('circuit')) {
+      errorType = 'Circuit Breaker (Supabase connection limit)';
+    } else if (message.includes('timeout') || message.includes('ETIMEDOUT')) {
+      errorType = 'Connection Timeout';
+    } else if (message.includes('ECONNREFUSED')) {
+      errorType = 'Connection Refused';
+    } else if (message.includes('authentication') || message.includes('password')) {
+      errorType = 'Authentication Failed';
+    } else if (errorCode) {
+      errorType = `Database Error (${errorCode})`;
+    }
+
     return (
       <div className="space-y-6">
         <h1 className="text-xl font-semibold">Dashboard</h1>
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-          <p className="font-medium">Unable to connect to the database</p>
-          <p className="mt-1 text-muted-foreground">{message}</p>
-          <p className="mt-2 text-xs">
-            Supabase → Database → Connection string. Run{" "}
-            <code className="rounded bg-muted px-1">prisma migrate deploy</code>.
-            If &quot;Circuit breaker&quot; persists: try <strong>Session</strong> pooler
-            (port 5432) instead of Transaction (6543) — same URL, change{" "}
-            <code className="rounded bg-muted px-1">:6543</code> to{" "}
-            <code className="rounded bg-muted px-1">:5432</code> in DATABASE_URL.
-          </p>
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm">
+          <p className="font-medium text-destructive">⚠️ Database Connection Failed</p>
+
+          {/* Error Type Badge */}
+          <div className="mt-2 inline-block rounded bg-destructive/20 px-2 py-1 text-xs font-medium">
+            {errorType}
+          </div>
+
+          {/* Error Message */}
+          <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+
+          {/* Additional Error Details */}
+          {errorDetails && (
+            <p className="mt-1 text-xs text-muted-foreground">Details: {errorDetails}</p>
+          )}
+
+          {/* Troubleshooting Steps */}
+          <div className="mt-4 space-y-2 text-xs">
+            <p className="font-medium">🔧 Troubleshooting Steps:</p>
+            <ol className="list-decimal list-inside space-y-1 ml-2 text-muted-foreground">
+              <li>Check <code className="bg-muted px-1 rounded">DATABASE_URL</code> in Vercel → Settings → Environment Variables</li>
+              <li>Verify Session pooler (port 5432): <code className="bg-muted px-1 rounded">:5432/postgres</code></li>
+              <li>Test connection: <code className="bg-muted px-1 rounded">curl https://your-app.vercel.app/api/health/db</code></li>
+              <li>Check Supabase Dashboard → Database → Connection pooling for active connections</li>
+              <li>View Vercel Function Logs for &quot;[DB] Connection&quot; messages</li>
+            </ol>
+          </div>
+
+          {/* Development Mode - Show Full Stack */}
+          {process.env.NODE_ENV === 'development' && err instanceof Error && err.stack && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs font-medium">🐛 Stack Trace (dev only)</summary>
+              <pre className="mt-2 overflow-auto rounded bg-muted p-2 text-xs">{err.stack}</pre>
+            </details>
+          )}
         </div>
       </div>
     );

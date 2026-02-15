@@ -4,5 +4,13 @@
       "path": "/api/scheduler/run",
       "schedule": "* * * * *"
     }
-  ]
+  ],
+  "functions": {
+    "app/(dashboard)/dashboard/page.tsx": {
+      "maxDuration": 10
+    },
+    "app/api/*/route.ts": {
+      "maxDuration": 10
+    }
+  }
 }
