@@ -108,3 +108,13 @@ export async function hasXConnected(): Promise<boolean> {
   const user = await getCurrentUser();
   return !!user?.xAccessToken;
 }
+
+/**
+ * Check if current user is admin (email in ADMIN_EMAILS env var, comma-separated)
+ */
+export async function isAdmin(): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) return false;
+  const adminEmails = process.env.ADMIN_EMAILS?.split(",").map((e) => e.trim().toLowerCase()) ?? [];
+  return adminEmails.includes(user.email.toLowerCase());
+}
