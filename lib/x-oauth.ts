@@ -1,13 +1,18 @@
 /**
  * X (Twitter) OAuth 2.0 PKCE flow helpers.
  * See: https://developer.x.com/en/docs/authentication/oauth-2-0/authorization-code
+ *
+ * SECURITY NOTE: For multi-user applications, the PKCE state cookie must include
+ * the userId to prevent session race conditions. Without this, if users switch
+ * sessions between OAuth initiation and callback, tokens can be saved to the wrong
+ * user account. Always validate userId in the callback matches the initiating user.
  */
 
 import { createHash, randomBytes } from "node:crypto";
 
 const X_AUTH_URL = "https://twitter.com/i/oauth2/authorize";
 const X_TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
-const SCOPES = ["tweet.read", "tweet.write", "users.read"];
+const SCOPES = ["tweet.read", "tweet.write", "users.read", "community.read"];
 
 function base64UrlEncode(buf: Buffer): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");

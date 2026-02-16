@@ -29,6 +29,7 @@ type Settings = {
   UTM_TEMPLATE?: string;
   SIMULATION_MODE?: boolean | string;
   TIMEZONE?: string;
+  IS_ADMIN?: boolean;
 };
 
 export function SettingsForm() {
@@ -43,6 +44,7 @@ export function SettingsForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -210,47 +212,69 @@ export function SettingsForm() {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={settings.X_API_CONFIGURED ? "default" : "secondary"}>
-              {settings.X_API_CONFIGURED ? "Configured" : "Not configured"}
-            </Badge>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleTestConnection}
-              disabled={testingConnection || !settings.X_API_CONFIGURED}
-            >
-              {testingConnection ? "Testing…" : "Test connection"}
-            </Button>
-            {(settings.X_CREDENTIALS_SET?.hasClientId && settings.X_CREDENTIALS_SET?.hasClientSecret) ? (
-              <Button variant="default" size="sm" asChild>
-                <Link href="/api/x/auth">Connect with X</Link>
+          {/* Connection Status */}
+          {settings.X_API_CONFIGURED && settings.X_ACCOUNT_DISPLAY ? (
+            <div className="p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                    ✓ Connected to X
+                  </p>
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    {settings.X_ACCOUNT_DISPLAY}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestConnection}
+                  disabled={testingConnection}
+                >
+                  {testingConnection ? "Testing…" : "Test"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 bg-muted border border-border rounded-lg">
+              <p className="text-sm font-medium mb-2">
+                {!(settings.X_CREDENTIALS_SET?.hasClientId && settings.X_CREDENTIALS_SET?.hasClientSecret)
+                  ? "⚠️ App not configured"
+                  : "🔌 Not connected"}
+              </p>
+              <p className="text-xs text-muted-foreground mb-3">
+                {!(settings.X_CREDENTIALS_SET?.hasClientId && settings.X_CREDENTIALS_SET?.hasClientSecret)
+                  ? "Administrator needs to configure Client ID & Secret first"
+                  : "Click below to connect your X account"}
+              </p>
+              {(settings.X_CREDENTIALS_SET?.hasClientId && settings.X_CREDENTIALS_SET?.hasClientSecret) && (
+                <Button variant="default" size="sm" asChild>
+                  <Link href="/api/x/auth">Connect with X</Link>
+                </Button>
+              )}
+            </div>
+          )}
+          {/* Advanced Configuration (collapsible - admin only) */}
+          {settings.IS_ADMIN && (
+            <div className="border-t pt-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="w-full justify-between"
+              >
+                <span className="text-xs font-medium">
+                  {showAdvanced ? "▼" : "▶"} Advanced Configuration (Admin)
+                </span>
               </Button>
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                Save Client ID + Secret to enable
-              </span>
-            )}
-            {settings.X_API_CONFIGURED && (
-              <>
-                {settings.X_ACCOUNT_DISPLAY ? (
-                  <span className="text-sm">
-                    Connected as <strong>{settings.X_ACCOUNT_DISPLAY}</strong>
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    Test connection to verify
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Use <strong>OAuth 2.0 User Context</strong> (PKCE flow). Save Client ID + Secret, then
-            click <strong>Connect with X</strong> to sign in and get tokens. Add your callback URL
-            to your app at developer.x.com (e.g. <code>http://localhost:3000/api/x/callback</code>).
-          </p>
-          <FieldGroup>
+
+              {showAdvanced && (
+              <div className="mt-4 space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Use <strong>OAuth 2.0 User Context</strong> (PKCE flow). Save Client ID + Secret, then
+                  click <strong>Connect with X</strong> to sign in and get tokens. Add your callback URL
+                  to your app at developer.x.com (e.g. <code>http://localhost:3000/api/x/callback</code>).
+                </p>
+                <FieldGroup>
             <Field>
               <FieldLabel>Client ID</FieldLabel>
               <Input
@@ -296,6 +320,10 @@ export function SettingsForm() {
               Save X API credentials
             </Button>
           </FieldGroup>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

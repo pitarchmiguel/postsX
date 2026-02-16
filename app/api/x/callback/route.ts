@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { exchangeCodeForTokens } from "@/lib/x-oauth";
 import { verifyXConnection } from "@/lib/x-api";
+import { getCurrentUser } from "@/lib/auth";
 
 const PKCE_COOKIE = "x_oauth_pkce";
 
@@ -19,6 +20,13 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get("error");
 
   const baseUrl = new URL("/settings", request.url);
+
+  // Get current user
+  const user = await getCurrentUser();
+  if (!user) {
+    baseUrl.searchParams.set("error", "Not+authenticated");
+    return Response.redirect(baseUrl);
+  }
 
   if (error) {
     const desc = searchParams.get("error_description") || error;
@@ -40,7 +48,7 @@ export async function GET(request: NextRequest) {
     return Response.redirect(baseUrl);
   }
 
-  let pkce: { codeVerifier: string; state: string };
+  let pkce: { codeVerifier: string; state: string; userId: string };
   try {
     pkce = JSON.parse(pkceRaw);
   } catch {
@@ -50,6 +58,13 @@ export async function GET(request: NextRequest) {
 
   if (pkce.state !== state) {
     baseUrl.searchParams.set("error", "Invalid+state");
+    return Response.redirect(baseUrl);
+  }
+
+  // Validate that the current user matches who initiated OAuth
+  // This prevents session race conditions where tokens get saved to wrong user
+  if (pkce.userId !== user.id) {
+    baseUrl.searchParams.set("error", "Session+mismatch.+Please+reconnect.");
     return Response.redirect(baseUrl);
   }
 
@@ -75,39 +90,26 @@ export async function GET(request: NextRequest) {
       redirectUri,
     });
 
-    await db.setting.upsert({
-      where: { key: "X_ACCESS_TOKEN" },
-      create: { key: "X_ACCESS_TOKEN", valueJson: accessToken },
-      update: { valueJson: accessToken },
+    // Save tokens to User table (per-user)
+    await db.user.update({
+      where: { id: user.id },
+      data: {
+        xAccessToken: accessToken,
+        xRefreshToken: refreshToken || null,
+        xClientId: clientId,
+      },
     });
-    if (refreshToken) {
-      await db.setting.upsert({
-        where: { key: "X_REFRESH_TOKEN" },
-        create: { key: "X_REFRESH_TOKEN", valueJson: refreshToken },
-        update: { valueJson: refreshToken },
-      });
-    }
 
-    const verify = await verifyXConnection();
-    if (verify.success && verify.username) {
-      await db.setting.upsert({
-        where: { key: "X_USERNAME" },
-        create: { key: "X_USERNAME", valueJson: verify.username },
-        update: { valueJson: verify.username },
-      });
-    }
-    if (verify.success && verify.name) {
-      await db.setting.upsert({
-        where: { key: "X_NAME" },
-        create: { key: "X_NAME", valueJson: verify.name },
-        update: { valueJson: verify.name },
-      });
-    }
-    if (verify.success && verify.profileImageUrl) {
-      await db.setting.upsert({
-        where: { key: "X_PROFILE_IMAGE_URL" },
-        create: { key: "X_PROFILE_IMAGE_URL", valueJson: verify.profileImageUrl },
-        update: { valueJson: verify.profileImageUrl },
+    // Verify connection and update profile
+    const verify = await verifyXConnection(user.id);
+    if (verify.success) {
+      await db.user.update({
+        where: { id: user.id },
+        data: {
+          xUsername: verify.username || null,
+          xName: verify.name || null,
+          xProfileImageUrl: verify.profileImageUrl || null,
+        },
       });
     }
 
