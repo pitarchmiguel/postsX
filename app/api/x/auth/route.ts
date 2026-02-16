@@ -67,6 +67,11 @@ export async function GET(request: NextRequest) {
   const state = crypto.randomUUID();
 
   const cookieStore = await cookies();
+
+  // Clear any existing PKCE cookie to prevent conflicts from previous attempts
+  cookieStore.delete(PKCE_COOKIE);
+
+  // Set new PKCE cookie for this OAuth attempt
   cookieStore.set(PKCE_COOKIE, JSON.stringify({
     codeVerifier,
     state,

@@ -29,8 +29,20 @@ export async function GET(request: NextRequest) {
   }
 
   if (error) {
+    // Clear PKCE cookie on error
+    const cookieStore = await cookies();
+    cookieStore.delete(PKCE_COOKIE);
+
     const desc = searchParams.get("error_description") || error;
-    baseUrl.searchParams.set("error", desc);
+    console.log("[X OAuth] OAuth error from X", { error, description: desc });
+
+    // User-friendly error messages
+    let errorMessage = desc;
+    if (error === "access_denied") {
+      errorMessage = "Authorization cancelled. Please try again if you want to connect.";
+    }
+
+    baseUrl.searchParams.set("error", errorMessage);
     return Response.redirect(baseUrl);
   }
 
@@ -57,7 +69,12 @@ export async function GET(request: NextRequest) {
   }
 
   if (pkce.state !== state) {
-    baseUrl.searchParams.set("error", "Invalid+state");
+    console.error("[X OAuth] State mismatch", {
+      expectedState: pkce.state,
+      receivedState: state,
+      userId: user.id,
+    });
+    baseUrl.searchParams.set("error", "Session+mismatch.+Please+try+connecting+again.");
     return Response.redirect(baseUrl);
   }
 
