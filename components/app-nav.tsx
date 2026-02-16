@@ -8,8 +8,9 @@ import {
   PenSquareIcon,
   BarChart3Icon,
   SettingsIcon,
-  LogOutIcon,
+  MessageSquareIcon,
 } from "lucide-react";
+import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -18,6 +19,7 @@ const navItems = [
   { href: "/posts", label: "Posts", icon: FileTextIcon },
   { href: "/composer", label: "Composer", icon: PenSquareIcon },
   { href: "/analytics", label: "Analytics", icon: BarChart3Icon },
+  { href: "/feedback", label: "Feedback", icon: MessageSquareIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ] as const;
 
@@ -26,33 +28,30 @@ export function AppNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:bottom-auto md:top-0 md:border-b md:border-t-0">
-      <div className="flex h-14 items-center justify-around gap-1 px-2 md:justify-start md:gap-0 md:px-4">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || pathname.startsWith(href + "/");
-          return (
-            <Button
-              key={href}
-              variant={isActive ? "secondary" : "ghost"}
-              size="sm"
-              asChild
-              className={cn(
-                "flex-1 md:flex-none md:px-4",
-                isActive && "bg-muted"
-              )}
-            >
-              <Link href={href} className="flex items-center gap-2">
-                <Icon className="size-4" />
-                <span className="sr-only md:not-sr-only text-xs md:text-sm">{label}</span>
-              </Link>
-            </Button>
-          );
-        })}
-        <form action="/auth/signout" method="post" className="ml-auto hidden md:block">
-          <Button variant="ghost" size="sm" type="submit" className="text-muted-foreground">
-            <LogOutIcon className="size-4" />
-            <span className="sr-only md:not-sr-only md:ml-2">Salir</span>
-          </Button>
-        </form>
+      <div className="flex h-14 items-center justify-around gap-1 px-2 md:justify-between md:gap-0 md:px-4">
+        <div className="flex flex-1 items-center justify-around gap-1 md:justify-start md:gap-0">
+          {navItems.map(({ href, label, icon: Icon }) => {
+            const isActive = pathname === href || pathname.startsWith(href + "/");
+            return (
+              <Button
+                key={href}
+                variant={isActive ? "secondary" : "ghost"}
+                size="sm"
+                asChild
+                className={cn(
+                  "flex-1 md:flex-none md:px-4",
+                  isActive && "bg-muted"
+                )}
+              >
+                <Link href={href} className="flex items-center gap-2">
+                  <Icon className="size-4" />
+                  <span className="sr-only md:not-sr-only text-xs md:text-sm">{label}</span>
+                </Link>
+              </Button>
+            );
+          })}
+        </div>
+        <UserMenu />
       </div>
     </nav>
   );
