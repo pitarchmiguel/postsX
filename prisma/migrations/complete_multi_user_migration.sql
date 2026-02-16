@@ -5,7 +5,7 @@
 
 -- Step 1: Create User table
 CREATE TABLE IF NOT EXISTS "User" (
-  "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+  "id" TEXT NOT NULL,
   "email" TEXT NOT NULL UNIQUE,
   "supabaseUserId" TEXT NOT NULL UNIQUE,
   "xAccessToken" TEXT,
@@ -47,8 +47,13 @@ LIMIT 10;
 -- Query 2: Create your user in the User table
 -- REPLACE 'your-supabase-user-id-here' with your UUID from Query 1
 -- REPLACE 'your-email@example.com' with your email
-INSERT INTO "User" ("email", "supabaseUserId")
-VALUES ('your-email@example.com', 'your-supabase-user-id-here')
+-- The id is auto-generated using gen_random_uuid()
+INSERT INTO "User" ("id", "email", "supabaseUserId")
+VALUES (
+  gen_random_uuid()::text,
+  'your-email@example.com',
+  'your-supabase-user-id-here'
+)
 ON CONFLICT ("supabaseUserId") DO NOTHING
 RETURNING *;
 
