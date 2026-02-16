@@ -209,6 +209,7 @@ export function PostsTable() {
             statusVariant={statusVariant}
             onDuplicate={handleDuplicate}
             onDelete={(id) => setDeleteId(id)}
+            userTimezone={userTimezone}
           />
         </TabsContent>
         <TabsContent value="scheduled" className="mt-4">
@@ -222,6 +223,7 @@ export function PostsTable() {
             onDuplicate={handleDuplicate}
             onDelete={(id) => setDeleteId(id)}
             showScheduled
+            userTimezone={userTimezone}
           />
         </TabsContent>
         <TabsContent value="published" className="mt-4">
@@ -235,6 +237,7 @@ export function PostsTable() {
             onDuplicate={handleDuplicate}
             onDelete={(id) => setDeleteId(id)}
             showPublished
+            userTimezone={userTimezone}
           />
         </TabsContent>
         <TabsContent value="failed" className="mt-4">
@@ -249,6 +252,7 @@ export function PostsTable() {
             onDelete={(id) => setDeleteId(id)}
             onRetry={handleRetry}
             showFailed
+            userTimezone={userTimezone}
           />
         </TabsContent>
       </Tabs>
@@ -289,6 +293,7 @@ function PostsList({
   showScheduled,
   showPublished,
   showFailed,
+  userTimezone,
 }: {
   posts: Post[];
   loading: boolean;
@@ -302,6 +307,7 @@ function PostsList({
   showScheduled?: boolean;
   showPublished?: boolean;
   showFailed?: boolean;
+  userTimezone: string;
 }) {
   if (loading) {
     return <div className="text-sm text-muted-foreground">Loading...</div>;
