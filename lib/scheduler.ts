@@ -26,6 +26,16 @@ export async function runScheduler(): Promise<{
   const simulationMode = await getSimulationMode();
 
   for (const post of duePosts) {
+    // Skip posts without userId (should not happen after migration)
+    if (!post.userId) {
+      console.error(`Post ${post.id} has no userId, marking as failed`);
+      await db.post.update({
+        where: { id: post.id },
+        data: { status: "FAILED" },
+      });
+      continue;
+    }
+
     try {
       // Check X API configuration for this specific user
       const xApiConfigured = await isXApiConfigured(post.userId);
