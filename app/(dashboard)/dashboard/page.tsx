@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getDashboardStats } from "@/lib/dashboard";
+import { requireUser } from "@/lib/auth";
 import { RunSchedulerButton } from "@/components/run-scheduler-button";
 import { CreatePostDialog } from "@/components/create-post-dialog";
 import { SchedulerPoll } from "@/components/scheduler-poll";
@@ -15,7 +16,8 @@ import { format } from "date-fns";
 export default async function DashboardPage() {
   let stats;
   try {
-    stats = await getDashboardStats();
+    const user = await requireUser();
+    stats = await getDashboardStats(user.id);
   } catch (err) {
     // Log full error details for debugging
     console.error('[Dashboard] Database connection failed:', err);

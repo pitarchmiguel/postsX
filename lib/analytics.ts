@@ -17,10 +17,15 @@ export interface DayOfWeekData {
   bestHours: number[]; // Top 3 hours for this day
 }
 
-export async function getTopPosts(limit = 10) {
+export async function getTopPosts(userId: string, limit = 10) {
   const metrics = await db.metric.findMany({
     include: { post: true },
-    where: { post: { status: "PUBLISHED" } },
+    where: {
+      post: {
+        status: "PUBLISHED",
+        userId: userId,
+      },
+    },
   });
 
   // Get latest metric per post (same logic as getEngagementStats)
@@ -58,10 +63,15 @@ export async function getTopPosts(limit = 10) {
     .slice(0, limit);
 }
 
-export async function getEngagementStats(): Promise<EngagementStats> {
+export async function getEngagementStats(userId: string): Promise<EngagementStats> {
   const metrics = await db.metric.findMany({
     include: { post: true },
-    where: { post: { status: "PUBLISHED" } },
+    where: {
+      post: {
+        status: "PUBLISHED",
+        userId: userId,
+      },
+    },
   });
 
   // Get latest metric per post
@@ -151,10 +161,15 @@ export interface TimeSlotData {
   confidence: "high" | "medium" | "low";
 }
 
-export async function getBestTimeSlotsChart(): Promise<TimeSlotData[]> {
+export async function getBestTimeSlotsChart(userId: string): Promise<TimeSlotData[]> {
   const metrics = await db.metric.findMany({
     include: { post: true },
-    where: { post: { status: "PUBLISHED" } },
+    where: {
+      post: {
+        status: "PUBLISHED",
+        userId: userId,
+      },
+    },
   });
 
   // Get latest metric per post to avoid duplicates
@@ -201,10 +216,15 @@ export async function getBestTimeSlotsChart(): Promise<TimeSlotData[]> {
   });
 }
 
-export async function getBestDayOfWeek(): Promise<DayOfWeekData[]> {
+export async function getBestDayOfWeek(userId: string): Promise<DayOfWeekData[]> {
   const metrics = await db.metric.findMany({
     include: { post: true },
-    where: { post: { status: "PUBLISHED" } },
+    where: {
+      post: {
+        status: "PUBLISHED",
+        userId: userId,
+      },
+    },
   });
 
   // Get latest metric per post

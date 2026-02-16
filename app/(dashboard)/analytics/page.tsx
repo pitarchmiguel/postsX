@@ -4,6 +4,7 @@ import {
   getEngagementStats,
   getBestDayOfWeek,
 } from "@/lib/analytics";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,11 +13,13 @@ import { cn } from "@/lib/utils";
 import { TopPostItem } from "@/components/top-post-item";
 
 export default async function AnalyticsPage() {
+  const user = await requireUser();
+
   const [topPosts, timeSlots, engagementStats, dayOfWeek] = await Promise.all([
-    getTopPosts(10),
-    getBestTimeSlotsChart(),
-    getEngagementStats(),
-    getBestDayOfWeek(),
+    getTopPosts(user.id, 10),
+    getBestTimeSlotsChart(user.id),
+    getEngagementStats(user.id),
+    getBestDayOfWeek(user.id),
   ]);
 
   const maxEngagement = Math.max(...timeSlots.map((s) => s.avgEngagement), 1);
