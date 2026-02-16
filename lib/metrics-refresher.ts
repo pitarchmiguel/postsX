@@ -61,6 +61,11 @@ export async function refreshMetrics(): Promise<RefreshResult> {
 
   for (const post of realPosts) {
     if (!post.xTweetId) continue;
+    if (!post.userId) {
+      console.warn(`Post ${post.id} has no userId, skipping metrics refresh`);
+      skipped++;
+      continue;
+    }
 
     // Check if we can make another request
     if (!canMakeRequest()) {
