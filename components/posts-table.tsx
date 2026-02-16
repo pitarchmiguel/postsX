@@ -36,6 +36,7 @@ import {
   CopyIcon,
   CalendarIcon,
   TrashIcon,
+  RefreshCwIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -72,7 +73,7 @@ export function PostsTable() {
   };
 
   useEffect(() => {
-    const statusMap = { drafts: "DRAFT", scheduled: "SCHEDULED", published: "PUBLISHED" };
+    const statusMap = { drafts: "DRAFT", scheduled: "SCHEDULED", published: "PUBLISHED", failed: "FAILED" };
     fetchPosts(statusMap[activeTab as keyof typeof statusMap]);
   }, [activeTab]);
 
@@ -87,7 +88,8 @@ export function PostsTable() {
         next.delete(id);
         return next;
       });
-      fetchPosts(activeTab === "drafts" ? "DRAFT" : activeTab === "scheduled" ? "SCHEDULED" : "PUBLISHED");
+      const statusMap: Record<string, string> = { drafts: "DRAFT", scheduled: "SCHEDULED", published: "PUBLISHED", failed: "FAILED" };
+      fetchPosts(statusMap[activeTab]);
     } catch {
       toast.error("Failed to delete post");
     }
@@ -112,13 +114,31 @@ export function PostsTable() {
     }
   };
 
+  const handleRetry = async (id: string) => {
+    try {
+      toast.loading("Retrying...", { id: "retry" });
+      const res = await fetch(`/api/posts/${id}/retry`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to retry");
+      toast.success(data.message || "Post published successfully", { id: "retry" });
+      // Refresh the current tab
+      const statusMap = { drafts: "DRAFT", scheduled: "SCHEDULED", published: "PUBLISHED", failed: "FAILED" };
+      fetchPosts(statusMap[activeTab as keyof typeof statusMap]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to retry post", { id: "retry" });
+    }
+  };
+
   const handleBulkDelete = async () => {
     for (const id of selected) {
       await fetch(`/api/posts/${id}`, { method: "DELETE" });
     }
     toast.success(`${selected.size} posts deleted`);
     setSelected(new Set());
-    fetchPosts(activeTab === "drafts" ? "DRAFT" : activeTab === "scheduled" ? "SCHEDULED" : "PUBLISHED");
+    const statusMap: Record<string, string> = { drafts: "DRAFT", scheduled: "SCHEDULED", published: "PUBLISHED", failed: "FAILED" };
+    fetchPosts(statusMap[activeTab]);
   };
 
   const toggleSelect = (id: string) => {
@@ -148,10 +168,11 @@ export function PostsTable() {
   return (
     <>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="drafts">Drafts</TabsTrigger>
           <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
           <TabsTrigger value="published">Published</TabsTrigger>
+          <TabsTrigger value="failed">Failed</TabsTrigger>
         </TabsList>
 
         {selected.size > 0 && (
@@ -203,6 +224,20 @@ export function PostsTable() {
             showPublished
           />
         </TabsContent>
+        <TabsContent value="failed" className="mt-4">
+          <PostsList
+            posts={posts}
+            loading={loading}
+            selected={selected}
+            toggleSelect={toggleSelect}
+            toggleSelectAll={toggleSelectAll}
+            statusVariant={statusVariant}
+            onDuplicate={handleDuplicate}
+            onDelete={(id) => setDeleteId(id)}
+            onRetry={handleRetry}
+            showFailed
+          />
+        </TabsContent>
       </Tabs>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
@@ -237,8 +272,10 @@ function PostsList({
   statusVariant,
   onDuplicate,
   onDelete,
+  onRetry,
   showScheduled,
   showPublished,
+  showFailed,
 }: {
   posts: Post[];
   loading: boolean;
@@ -248,8 +285,10 @@ function PostsList({
   statusVariant: (s: string) => "default" | "secondary" | "outline" | "destructive";
   onDuplicate: (post: Post) => void;
   onDelete: (id: string) => void;
+  onRetry?: (id: string) => void;
   showScheduled?: boolean;
   showPublished?: boolean;
+  showFailed?: boolean;
 }) {
   if (loading) {
     return <div className="text-sm text-muted-foreground">Loading...</div>;
@@ -273,6 +312,7 @@ function PostsList({
           <TableHead>Preview</TableHead>
           {showScheduled && <TableHead>Scheduled</TableHead>}
           {showPublished && <TableHead>Published</TableHead>}
+          {showFailed && <TableHead>Failed at</TableHead>}
           <TableHead>Tags</TableHead>
           <TableHead>Last edited</TableHead>
           <TableHead className="w-10" />
@@ -308,6 +348,13 @@ function PostsList({
                   : "—"}
               </TableCell>
             )}
+            {showFailed && (
+              <TableCell>
+                {post.scheduledAt
+                  ? format(new Date(post.scheduledAt), "d MMM, HH:mm")
+                  : format(new Date(post.updatedAt), "d MMM, HH:mm")}
+              </TableCell>
+            )}
             <TableCell className="text-muted-foreground">
               {post.tags || "—"}
             </TableCell>
@@ -322,6 +369,12 @@ function PostsList({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {post.status === "FAILED" && onRetry && (
+                    <DropdownMenuItem onClick={() => onRetry(post.id)}>
+                      <RefreshCwIcon className="mr-2 size-4" />
+                      Retry
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem asChild>
                     <Link href={`/composer?edit=${post.id}`}>
                       <PencilIcon className="mr-2 size-4" />

@@ -23,12 +23,14 @@ export async function runScheduler(): Promise<{
     },
   });
 
+  console.log(`[Scheduler] Running at ${now.toISOString()}, found ${duePosts.length} posts due`);
+
   const simulationMode = await getSimulationMode();
 
   for (const post of duePosts) {
     // Skip posts without userId (should not happen after migration)
     if (!post.userId) {
-      console.error(`Post ${post.id} has no userId, marking as failed`);
+      console.error(`[Scheduler] Post ${post.id} has no userId, marking as failed`);
       await db.post.update({
         where: { id: post.id },
         data: { status: "FAILED" },
@@ -36,16 +38,22 @@ export async function runScheduler(): Promise<{
       continue;
     }
 
+    console.log(`[Scheduler] Processing post ${post.id}, scheduled for ${post.scheduledAt?.toISOString()}, userId: ${post.userId}`);
+
     try {
       // Check X API configuration for this specific user
       const xApiConfigured = await isXApiConfigured(post.userId);
       const useSimulation = simulationMode || !xApiConfigured;
+
+      console.log(`[Scheduler] Post ${post.id}: simulationMode=${simulationMode}, xApiConfigured=${xApiConfigured}, useSimulation=${useSimulation}`);
 
       const result = await postTweet(post.userId, post.text, {
         forceSimulation: useSimulation,
         communityId: post.communityId,
       });
       const tweetId = result?.id ?? `mock_${Date.now()}_${post.id}`;
+
+      console.log(`[Scheduler] Post ${post.id} published successfully, tweetId: ${tweetId}`);
 
       await db.post.update({
         where: { id: post.id },
@@ -73,13 +81,18 @@ export async function runScheduler(): Promise<{
 
       results.push({ id: post.id, status: "published" });
     } catch (err) {
-      console.error(`Failed to publish post ${post.id}:`, err);
+      console.error(`[Scheduler] Failed to publish post ${post.id}:`, err);
       await db.post.update({
         where: { id: post.id },
         data: { status: "FAILED" },
       });
       results.push({ id: post.id, status: "failed" });
     }
+  }
+
+  console.log(`[Scheduler] Completed: processed ${results.length} posts`);
+  if (results.length > 0) {
+    console.log(`[Scheduler] Results:`, results);
   }
 
   return { processed: results.length, results };

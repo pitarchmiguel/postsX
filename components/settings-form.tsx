@@ -7,6 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { DownloadIcon, UploadIcon } from "lucide-react";
 import Link from "next/link";
@@ -44,6 +54,8 @@ export function SettingsForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
@@ -164,6 +176,25 @@ export function SettingsForm() {
     }
   };
 
+  const handleDisconnect = async () => {
+    setDisconnecting(true);
+    try {
+      const res = await fetch("/api/x/disconnect", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Disconnected from X");
+        setShowDisconnectDialog(false);
+        await refreshSettings();
+      } else {
+        toast.error(data.error || "Failed to disconnect");
+      }
+    } catch {
+      toast.error("Failed to disconnect");
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
   const saveXApiCredentials = async () => {
     const payload: Record<string, string> = {};
     if (xApiForm.clientId) payload.X_CLIENT_ID = xApiForm.clientId;
@@ -224,14 +255,24 @@ export function SettingsForm() {
                     {settings.X_ACCOUNT_DISPLAY}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleTestConnection}
-                  disabled={testingConnection}
-                >
-                  {testingConnection ? "Testing…" : "Test"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestConnection}
+                    disabled={testingConnection || disconnecting}
+                  >
+                    {testingConnection ? "Testing…" : "Test"}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowDisconnectDialog(true)}
+                    disabled={disconnecting || testingConnection}
+                  >
+                    Disconnect
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (
@@ -466,6 +507,28 @@ export function SettingsForm() {
           </Button>
         </CardContent>
       </Card>
+
+      <AlertDialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disconnect from X?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove your X account connection. You'll need to reconnect to post tweets.
+              Your scheduled and published posts will not be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={disconnecting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {disconnecting ? "Disconnecting…" : "Disconnect"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
