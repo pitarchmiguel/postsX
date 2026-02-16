@@ -1,51 +1,45 @@
 /**
  * X (Twitter) API v2 client.
- * Reads credentials from env vars or database (Settings).
+ * Reads credentials from User table (per-user tokens).
  * Falls back to simulation when not configured.
  */
 
 const X_API_BASE = "https://api.twitter.com/2";
 
-export async function isXApiConfigured(): Promise<boolean> {
-  if (process.env.X_ACCESS_TOKEN || process.env.X_CLIENT_ID) return true;
+export async function isXApiConfigured(userId: string): Promise<boolean> {
+  // Check if this specific user has X configured
   const { db } = await import("@/lib/db");
-  const settings = await db.setting.findMany({
-    where: { key: { in: ["X_ACCESS_TOKEN", "X_CLIENT_ID"] } },
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { xAccessToken: true, xClientId: true },
   });
-  return settings.some((s) => s.valueJson?.trim());
+  return !!user?.xAccessToken || !!user?.xClientId;
 }
 
-async function getXApiConfig(): Promise<{
+async function getXApiConfig(userId: string): Promise<{
   accessToken?: string;
   clientId?: string;
 }> {
-  if (process.env.X_ACCESS_TOKEN || process.env.X_CLIENT_ID) {
-    return {
-      accessToken: process.env.X_ACCESS_TOKEN,
-      clientId: process.env.X_CLIENT_ID,
-    };
-  }
   const { db } = await import("@/lib/db");
-  const settings = await db.setting.findMany({
-    where: { key: { in: ["X_ACCESS_TOKEN", "X_CLIENT_ID"] } },
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { xAccessToken: true, xClientId: true },
   });
-  const map = Object.fromEntries(settings.map((s) => [s.key, s.valueJson]));
-  const accessToken = map.X_ACCESS_TOKEN?.trim();
-  const clientId = map.X_CLIENT_ID?.trim();
+
   return {
-    accessToken: accessToken || undefined,
-    clientId: clientId || undefined,
+    accessToken: user?.xAccessToken || undefined,
+    clientId: user?.xClientId || undefined,
   };
 }
 
-export async function verifyXConnection(): Promise<{
+export async function verifyXConnection(userId: string): Promise<{
   success: boolean;
   username?: string;
   name?: string;
   profileImageUrl?: string;
   error?: string;
 }> {
-  const config = await getXApiConfig();
+  const config = await getXApiConfig(userId);
   if (!config.accessToken) {
     return { success: false, error: "No access token configured" };
   }
@@ -82,14 +76,33 @@ export async function verifyXConnection(): Promise<{
   }
 }
 
+export async function hasCommunityAccess(userId: string): Promise<boolean> {
+  const config = await getXApiConfig(userId);
+  if (!config.accessToken) return false;
+
+  try {
+    // Try to search communities - if it works, we have access
+    const res = await fetch(`${X_API_BASE}/communities/search?query=test`, {
+      headers: { Authorization: `Bearer ${config.accessToken}` },
+    });
+    return res.ok; // 200 = has access, 403 = needs re-auth
+  } catch {
+    return false;
+  }
+}
+
 export async function postTweet(
+  userId: string,
   text: string,
-  options?: { forceSimulation?: boolean }
+  options?: {
+    forceSimulation?: boolean;
+    communityId?: string | null;
+  }
 ): Promise<{ id: string } | null> {
   if (options?.forceSimulation) {
     return { id: `mock_${Date.now()}` };
   }
-  const config = await getXApiConfig();
+  const config = await getXApiConfig(userId);
   if (!config.accessToken && !config.clientId) {
     return { id: `mock_${Date.now()}` };
   }
@@ -98,18 +111,31 @@ export async function postTweet(
   }
 
   try {
+    // Construct body with optional community_id
+    const body: { text: string; community_id?: string } = { text };
+    if (options?.communityId) {
+      body.community_id = options.communityId;
+    }
+
     const res = await fetch(`${X_API_BASE}/tweets`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.accessToken}`,
       },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error((err as { detail?: string }).detail || res.statusText);
+      const errorDetail = (err as { detail?: string }).detail || res.statusText;
+
+      // Error specific to communities
+      if (errorDetail.toLowerCase().includes("community")) {
+        throw new Error("Community post failed: You may not have permission to post in this community");
+      }
+
+      throw new Error(errorDetail);
     }
 
     const data = (await res.json()) as { data?: { id: string } };
@@ -132,7 +158,7 @@ export interface TweetMetrics {
   error?: string;
 }
 
-export async function getTweetMetrics(tweetId: string): Promise<TweetMetrics> {
+export async function getTweetMetrics(userId: string, tweetId: string): Promise<TweetMetrics> {
   // Mock tweets always return simulated data
   if (tweetId.startsWith("mock_")) {
     return {
@@ -145,7 +171,7 @@ export async function getTweetMetrics(tweetId: string): Promise<TweetMetrics> {
     };
   }
 
-  const config = await getXApiConfig();
+  const config = await getXApiConfig(userId);
   const token = config.accessToken;
 
   // No credentials configured - return unavailable
@@ -228,5 +254,92 @@ export async function getTweetMetrics(tweetId: string): Promise<TweetMetrics> {
       source: "unavailable",
       error: String(err),
     };
+  }
+}
+
+export interface UserCommunity {
+  id: string;
+  name: string;
+  description?: string;
+  member_count?: number;
+}
+
+/**
+ * Search communities by keyword.
+ * Note: X API v2 doesn't have an endpoint to list user's communities,
+ * so we use search + manual input as fallback.
+ */
+export async function searchCommunities(userId: string, query: string): Promise<{
+  communities: UserCommunity[];
+  error?: string;
+}> {
+  const config = await getXApiConfig(userId);
+  if (!config.accessToken) {
+    return { communities: [], error: "Not authenticated" };
+  }
+
+  try {
+    const res = await fetch(
+      `${X_API_BASE}/communities/search?query=${encodeURIComponent(query)}`,
+      {
+        headers: { Authorization: `Bearer ${config.accessToken}` },
+      }
+    );
+
+    if (!res.ok) {
+      if (res.status === 403) {
+        return { communities: [], error: "Reconnect your X account to search communities" };
+      }
+      throw new Error(`Search failed: ${res.statusText}`);
+    }
+
+    const data = await res.json() as {
+      data?: Array<{
+        id: string;
+        name: string;
+        description?: string;
+        member_count?: number;
+      }>;
+    };
+
+    return { communities: data.data || [] };
+  } catch (err) {
+    return { communities: [], error: String(err) };
+  }
+}
+
+/**
+ * Get community info by ID (for validation)
+ */
+export async function getCommunityById(userId: string, communityId: string): Promise<{
+  community?: UserCommunity;
+  error?: string;
+}> {
+  const config = await getXApiConfig(userId);
+  if (!config.accessToken) {
+    return { error: "Not authenticated" };
+  }
+
+  try {
+    const res = await fetch(`${X_API_BASE}/communities/${communityId}`, {
+      headers: { Authorization: `Bearer ${config.accessToken}` },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Community not found: ${res.statusText}`);
+    }
+
+    const data = await res.json() as {
+      data?: {
+        id: string;
+        name: string;
+        description?: string;
+        member_count?: number;
+      };
+    };
+
+    return { community: data.data };
+  } catch (err) {
+    return { error: String(err) };
   }
 }

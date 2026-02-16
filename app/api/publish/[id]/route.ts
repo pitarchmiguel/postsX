@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { postTweet, isXApiConfigured } from "@/lib/x-api";
+import { requireUser } from "@/lib/auth";
 
 async function getSimulationMode(): Promise<boolean> {
   const setting = await db.setting.findUnique({
@@ -15,10 +16,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireUser();
     const { id } = await params;
 
-    const post = await db.post.findUnique({
-      where: { id },
+    // Verify ownership
+    const post = await db.post.findFirst({
+      where: {
+        id,
+        userId: user.id,
+      },
     });
 
     if (!post) {
@@ -33,28 +39,44 @@ export async function POST(
     }
 
     const simulationMode = await getSimulationMode();
-    const xApiConfigured = await isXApiConfigured();
+    const xApiConfigured = await isXApiConfigured(user.id);
 
     let tweetId: string;
     let simulated = false;
 
     if (!xApiConfigured || simulationMode) {
-      const result = await postTweet(post.text, { forceSimulation: simulationMode });
+      const result = await postTweet(user.id, post.text, {
+        forceSimulation: simulationMode,
+        communityId: post.communityId,
+      });
       tweetId = result?.id ?? `mock_${Date.now()}`;
       simulated = true;
     } else {
       try {
-        const result = await postTweet(post.text);
+        const result = await postTweet(user.id, post.text, {
+          communityId: post.communityId,
+        });
         if (!result) throw new Error("No tweet ID returned");
         tweetId = result.id;
       } catch (err) {
         console.error("X API publish failed:", err);
+
+        // Community-specific error message
+        const errorMsg = String(err);
+        const isCommunityError = errorMsg.toLowerCase().includes("community");
+
         await db.post.update({
           where: { id },
           data: { status: "FAILED" },
         });
+
         return Response.json(
-          { error: "Failed to publish to X", details: String(err) },
+          {
+            error: isCommunityError
+              ? "Failed to publish to community. Check your permissions."
+              : "Failed to publish to X",
+            details: errorMsg,
+          },
           { status: 502 }
         );
       }
@@ -70,7 +92,7 @@ export async function POST(
     });
 
     const { getTweetMetrics } = await import("@/lib/x-api");
-    const metrics = await getTweetMetrics(tweetId);
+    const metrics = await getTweetMetrics(user.id, tweetId);
 
     // Extract only the metric fields (exclude source and error)
     const { impressions, likes, replies, reposts, bookmarks } = metrics;
@@ -91,6 +113,9 @@ export async function POST(
       simulated,
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
     console.error(error);
     return Response.json(
       { error: "Internal server error" },

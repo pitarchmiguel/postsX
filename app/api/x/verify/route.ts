@@ -1,34 +1,28 @@
 import { verifyXConnection } from "@/lib/x-api";
 import { db } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 
 export async function POST() {
   try {
-    const result = await verifyXConnection();
+    const user = await requireUser();
+    const result = await verifyXConnection(user.id);
 
-    if (result.success && result.username) {
-      await db.setting.upsert({
-        where: { key: "X_USERNAME" },
-        create: { key: "X_USERNAME", valueJson: result.username },
-        update: { valueJson: result.username },
-      });
-    }
-    if (result.success && result.name) {
-      await db.setting.upsert({
-        where: { key: "X_NAME" },
-        create: { key: "X_NAME", valueJson: result.name },
-        update: { valueJson: result.name },
-      });
-    }
-    if (result.success && result.profileImageUrl) {
-      await db.setting.upsert({
-        where: { key: "X_PROFILE_IMAGE_URL" },
-        create: { key: "X_PROFILE_IMAGE_URL", valueJson: result.profileImageUrl },
-        update: { valueJson: result.profileImageUrl },
+    if (result.success) {
+      await db.user.update({
+        where: { id: user.id },
+        data: {
+          xUsername: result.username || null,
+          xName: result.name || null,
+          xProfileImageUrl: result.profileImageUrl || null,
+        },
       });
     }
 
     return Response.json(result);
   } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
     console.error(error);
     return Response.json(
       { success: false, error: "Internal server error" },

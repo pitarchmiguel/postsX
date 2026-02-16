@@ -2,24 +2,35 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { POST_STATUSES } from "@/lib/types";
+import { requireUser } from "@/lib/auth";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireUser();
     const { id } = await params;
-    const post = await db.post.findUnique({
-      where: { id },
+
+    const post = await db.post.findFirst({
+      where: {
+        id,
+        userId: user.id, // Verify ownership
+      },
       include: {
         metrics: { orderBy: { capturedAt: "desc" }, take: 1 },
       },
     });
+
     if (!post) {
       return Response.json({ error: "Post not found" }, { status: 404 });
     }
+
     return Response.json(post);
   } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
     console.error(error);
     return Response.json(
       { error: "Internal server error" },
@@ -34,6 +45,7 @@ const updatePostSchema = z.object({
   scheduledAt: z.string().datetime().optional().nullable(),
   tags: z.string().optional(),
   status: z.enum(POST_STATUSES).optional(),
+  communityId: z.string().optional().nullable(),
 });
 
 export async function PATCH(
@@ -41,7 +53,18 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireUser();
     const { id } = await params;
+
+    // Verify ownership
+    const existing = await db.post.findFirst({
+      where: { id, userId: user.id },
+    });
+
+    if (!existing) {
+      return Response.json({ error: "Post not found" }, { status: 404 });
+    }
+
     const body = await request.json();
     const data = updatePostSchema.parse(body);
 
@@ -52,6 +75,7 @@ export async function PATCH(
       updateData.scheduledAt = data.scheduledAt ? new Date(data.scheduledAt) : null;
     if (data.tags !== undefined) updateData.tags = data.tags;
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.communityId !== undefined) updateData.communityId = data.communityId;
 
     const post = await db.post.update({
       where: { id },
@@ -60,6 +84,9 @@ export async function PATCH(
 
     return Response.json(post);
   } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
     if (error instanceof z.ZodError) {
       return Response.json(
         { error: "Validation error", details: error.issues },
@@ -82,7 +109,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireUser();
     const { id } = await params;
+
+    // Verify ownership before deleting
+    const existing = await db.post.findFirst({
+      where: { id, userId: user.id },
+    });
+
+    if (!existing) {
+      return Response.json({ error: "Post not found" }, { status: 404 });
+    }
 
     await db.post.delete({
       where: { id },
@@ -90,6 +127,9 @@ export async function DELETE(
 
     return Response.json({ success: true });
   } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
     if (error && typeof error === "object" && "code" in error && error.code === "P2025") {
       return Response.json({ error: "Post not found" }, { status: 404 });
     }

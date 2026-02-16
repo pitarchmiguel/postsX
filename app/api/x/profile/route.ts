@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { verifyXConnection, isXApiConfigured } from "@/lib/x-api";
+import { getCurrentUser } from "@/lib/auth";
 
 /**
  * Returns the current X user profile for the composer preview.
@@ -7,45 +8,54 @@ import { verifyXConnection, isXApiConfigured } from "@/lib/x-api";
  */
 export async function GET() {
   try {
-    const settings = await db.setting.findMany({
-      where: {
-        key: { in: ["X_USERNAME", "X_NAME", "X_PROFILE_IMAGE_URL"] },
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return Response.json(
+        { username: null, name: null, profileImageUrl: null },
+        { status: 401 }
+      );
+    }
+
+    // Get user from database
+    const user = await db.user.findUnique({
+      where: { id: currentUser.id },
+      select: {
+        xUsername: true,
+        xName: true,
+        xProfileImageUrl: true,
+        xAccessToken: true,
       },
     });
-    const map = Object.fromEntries(settings.map((s) => [s.key, s.valueJson?.trim()]));
 
-    let username = map.X_USERNAME || null;
-    let name = map.X_NAME || null;
-    let profileImageUrl = map.X_PROFILE_IMAGE_URL || null;
+    if (!user) {
+      return Response.json(
+        { username: null, name: null, profileImageUrl: null },
+        { status: 404 }
+      );
+    }
 
-    const xConfigured = await isXApiConfigured();
+    let username = user.xUsername;
+    let name = user.xName;
+    let profileImageUrl = user.xProfileImageUrl;
+
+    // If profile is incomplete and X is configured, fetch from API
+    const xConfigured = await isXApiConfigured(currentUser.id);
     if ((!username || !profileImageUrl) && xConfigured) {
-      const verify = await verifyXConnection();
+      const verify = await verifyXConnection(currentUser.id);
       if (verify.success) {
-        if (verify.username) {
-          username = verify.username;
-          await db.setting.upsert({
-            where: { key: "X_USERNAME" },
-            create: { key: "X_USERNAME", valueJson: verify.username },
-            update: { valueJson: verify.username },
-          });
-        }
-        if (verify.name) {
-          name = verify.name;
-          await db.setting.upsert({
-            where: { key: "X_NAME" },
-            create: { key: "X_NAME", valueJson: verify.name },
-            update: { valueJson: verify.name },
-          });
-        }
-        if (verify.profileImageUrl) {
-          profileImageUrl = verify.profileImageUrl;
-          await db.setting.upsert({
-            where: { key: "X_PROFILE_IMAGE_URL" },
-            create: { key: "X_PROFILE_IMAGE_URL", valueJson: verify.profileImageUrl },
-            update: { valueJson: verify.profileImageUrl },
-          });
-        }
+        // Update user profile with fresh data
+        await db.user.update({
+          where: { id: currentUser.id },
+          data: {
+            xUsername: verify.username || null,
+            xName: verify.name || null,
+            xProfileImageUrl: verify.profileImageUrl || null,
+          },
+        });
+
+        username = verify.username || username;
+        name = verify.name || name;
+        profileImageUrl = verify.profileImageUrl || profileImageUrl;
       }
     }
 
