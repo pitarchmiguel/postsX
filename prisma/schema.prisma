@@ -9,8 +9,34 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  supabaseUserId    String   @unique // Supabase Auth user ID
+
+  // X (Twitter) connection
+  xAccessToken      String?
+  xRefreshToken     String?
+  xTokenExpiresAt   DateTime?
+  xClientId         String?
+  xUsername         String?
+  xName             String?
+  xProfileImageUrl  String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  posts             Post[]
+  feedback          Feedback[]
+
+  @@index([supabaseUserId])
+  @@index([email])
+}
+
 model Post {
   id          String    @id @default(cuid())
+  userId      String?   // Owner of the post (optional during migration)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   status      String    // DRAFT | SCHEDULED | PUBLISHED | FAILED
   text        String
   threadJson  String?   // JSON array for thread mode
@@ -18,9 +44,14 @@ model Post {
   publishedAt DateTime?
   tags        String    @default("") // comma-separated or JSON
   xTweetId    String?   // X API tweet ID after publish
+  communityId String?   // X Community ID (null = regular feed)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   metrics     Metric[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([scheduledAt])
 }
 
 model Metric {
@@ -42,4 +73,16 @@ model Setting {
   key      String   @unique
   valueJson String  @default("{}")
   updatedAt DateTime @updatedAt
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String
+  type      String   // bug | feature | suggestion | other
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }
