@@ -63,6 +63,50 @@ export async function getTopPosts(userId: string, limit = 10) {
     .slice(0, limit);
 }
 
+export async function getTopPostsByImpressions(userId: string, limit?: number) {
+  const metrics = await db.metric.findMany({
+    include: { post: true },
+    where: {
+      post: {
+        status: "PUBLISHED",
+        userId: userId,
+      },
+    },
+  });
+
+  // Get latest metric per post
+  const latestMetricsByPost = new Map<string, typeof metrics[0]>();
+  for (const m of metrics) {
+    const existing = latestMetricsByPost.get(m.postId);
+    if (!existing || m.capturedAt > existing.capturedAt) {
+      latestMetricsByPost.set(m.postId, m);
+    }
+  }
+
+  // Map to post data (no engagement calculation, just impressions)
+  const posts = Array.from(latestMetricsByPost.values()).map((m) => ({
+    post: { id: m.post.id, text: m.post.text, publishedAt: m.post.publishedAt },
+    impressions: m.impressions,
+    likes: m.likes,
+  }));
+
+  // Filter: keep posts with metrics > 0, OR recently published (< 4 hours ago)
+  const now = new Date();
+  const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+
+  const filtered = posts.filter((post) => {
+    const hasMetrics = post.impressions > 0 || post.likes > 0;
+    const isRecent = post.post.publishedAt && new Date(post.post.publishedAt) > fourHoursAgo;
+    return hasMetrics || isRecent;
+  });
+
+  // Sort by impressions descending
+  const sorted = filtered.sort((a, b) => b.impressions - a.impressions);
+
+  // Apply limit if specified
+  return limit !== undefined ? sorted.slice(0, limit) : sorted;
+}
+
 export async function getEngagementStats(userId: string): Promise<EngagementStats> {
   const metrics = await db.metric.findMany({
     include: { post: true },

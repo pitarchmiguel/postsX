@@ -1,5 +1,5 @@
 import {
-  getTopPosts,
+  getTopPostsByImpressions,
   getBestTimeSlotsChart,
   getEngagementStats,
   getBestDayOfWeek,
@@ -10,13 +10,14 @@ export const dynamic = "force-dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { TopPostItem } from "@/components/top-post-item";
+import { TopPostsList } from "@/components/top-posts-list";
+import { RefreshMetricsButton } from "@/components/refresh-metrics-button";
 
 export default async function AnalyticsPage() {
   const user = await requireUser();
 
   const [topPosts, timeSlots, engagementStats, dayOfWeek] = await Promise.all([
-    getTopPosts(user.id, 10),
+    getTopPostsByImpressions(user.id, 10),
     getBestTimeSlotsChart(user.id),
     getEngagementStats(user.id),
     getBestDayOfWeek(user.id),
@@ -30,6 +31,7 @@ export default async function AnalyticsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Analytics</h1>
+        <RefreshMetricsButton />
       </div>
 
       {/* Engagement Stats Overview */}
@@ -85,33 +87,31 @@ export default async function AnalyticsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Top 10 posts</CardTitle>
+            <CardTitle className="text-base">Top posts by impressions</CardTitle>
             <p className="text-sm text-muted-foreground">
-              By engagement (impressions + likes + replies + reposts + bookmarks)
+              Ranked by total impressions received
             </p>
           </CardHeader>
           <CardContent>
             {topPosts.length === 0 ? (
-              <div className="text-center py-8">
+              <div className="text-center py-8 space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  No published posts yet.
+                  No posts with metrics found.
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Publish your first post to see analytics and recommendations.
-                </p>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>This could mean:</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>No posts have been published yet</li>
+                    <li>Metrics haven&apos;t been captured yet</li>
+                    <li>Published posts don&apos;t have impressions yet</li>
+                  </ul>
+                  <p className="mt-3 font-medium">
+                    Try clicking &quot;Refresh Metrics&quot; above to fetch the latest data from X.
+                  </p>
+                </div>
               </div>
             ) : (
-              <ol className="space-y-2">
-                {topPosts.map((item, i) => (
-                  <TopPostItem
-                    key={item.post.id}
-                    post={item.post}
-                    index={i}
-                    impressions={item.impressions}
-                    likes={item.likes}
-                  />
-                ))}
-              </ol>
+              <TopPostsList initialPosts={topPosts} />
             )}
           </CardContent>
         </Card>
