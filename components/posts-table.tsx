@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatInTimezone, getDefaultTimezone } from "@/lib/timezone";
 
 type Post = {
   id: string;
@@ -57,6 +58,7 @@ export function PostsTable() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("drafts");
+  const [userTimezone, setUserTimezone] = useState<string>(getDefaultTimezone());
 
   const fetchPosts = async (status?: string) => {
     setLoading(true);
@@ -76,6 +78,17 @@ export function PostsTable() {
     const statusMap = { drafts: "DRAFT", scheduled: "SCHEDULED", published: "PUBLISHED", failed: "FAILED" };
     fetchPosts(statusMap[activeTab as keyof typeof statusMap]);
   }, [activeTab]);
+
+  useEffect(() => {
+    fetch("/api/user/me")
+      .then((r) => r.json())
+      .then((data: { timezone?: string }) => {
+        if (data.timezone) {
+          setUserTimezone(data.timezone);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const handleDelete = async (id: string) => {
     try {
@@ -337,29 +350,29 @@ function PostsList({
             {showScheduled && (
               <TableCell>
                 {post.scheduledAt
-                  ? format(new Date(post.scheduledAt), "d MMM, HH:mm")
+                  ? formatInTimezone(new Date(post.scheduledAt), userTimezone, "d MMM, HH:mm")
                   : "—"}
               </TableCell>
             )}
             {showPublished && (
               <TableCell>
                 {post.publishedAt
-                  ? format(new Date(post.publishedAt), "d MMM, HH:mm")
+                  ? formatInTimezone(new Date(post.publishedAt), userTimezone, "d MMM, HH:mm")
                   : "—"}
               </TableCell>
             )}
             {showFailed && (
               <TableCell>
                 {post.scheduledAt
-                  ? format(new Date(post.scheduledAt), "d MMM, HH:mm")
-                  : format(new Date(post.updatedAt), "d MMM, HH:mm")}
+                  ? formatInTimezone(new Date(post.scheduledAt), userTimezone, "d MMM, HH:mm")
+                  : formatInTimezone(new Date(post.updatedAt), userTimezone, "d MMM, HH:mm")}
               </TableCell>
             )}
             <TableCell className="text-muted-foreground">
               {post.tags || "—"}
             </TableCell>
             <TableCell className="text-muted-foreground text-xs">
-              {format(new Date(post.updatedAt), "d MMM")}
+              {formatInTimezone(new Date(post.updatedAt), userTimezone, "d MMM")}
             </TableCell>
             <TableCell>
               <DropdownMenu>

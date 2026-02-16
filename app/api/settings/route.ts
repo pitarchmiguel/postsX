@@ -13,6 +13,7 @@ const SETTING_KEYS = [
   "UTM_TEMPLATE",
   "SIMULATION_MODE",
   "TIMEZONE",
+  "USER_TIMEZONE",
   "X_CLIENT_ID",
   "X_CLIENT_SECRET",
   "X_ACCESS_TOKEN",
@@ -84,6 +85,7 @@ export async function GET() {
         xUsername: true,
         xName: true,
         xProfileImageUrl: true,
+        timezone: true,
       },
     });
 
@@ -109,6 +111,9 @@ export async function GET() {
         : user?.xUsername
           ? `@${user.xUsername}`
           : user?.xName || null;
+
+    // Add user timezone
+    settings.USER_TIMEZONE = user?.timezone || DEFAULT_TIMEZONE;
 
     // Check if current user is admin
     settings.IS_ADMIN = await isAdmin();
@@ -145,6 +150,12 @@ export async function PATCH(request: NextRequest) {
         userUpdates.xAccessToken = value || null;
       } else if (key === "X_REFRESH_TOKEN") {
         userUpdates.xRefreshToken = value || null;
+      }
+      // User timezone goes to User table
+      else if (key === "USER_TIMEZONE") {
+        if (typeof raw === "string" && raw.trim()) {
+          userUpdates.timezone = raw.trim();
+        }
       }
       // X Client ID/Secret stay in Settings (app-level config)
       else if (key === "X_CLIENT_ID" || key === "X_CLIENT_SECRET") {

@@ -16,6 +16,7 @@ export async function GET() {
         xName: true,
         xProfileImageUrl: true,
         xAccessToken: true,
+        timezone: true,
       },
     });
 
@@ -31,6 +32,7 @@ export async function GET() {
       xName: user.xName,
       xProfileImageUrl: profileImageUrl,
       xConnected: !!user.xAccessToken,
+      timezone: user.timezone,
     });
   } catch (error) {
     console.error("GET /api/user/me error:", error);

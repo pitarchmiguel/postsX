@@ -23,6 +23,9 @@ model User {
   xName             String?
   xProfileImageUrl  String?
 
+  // User timezone preference
+  timezone          String   @default("Europe/Madrid")
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

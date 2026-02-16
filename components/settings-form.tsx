@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -20,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { DownloadIcon, UploadIcon } from "lucide-react";
 import Link from "next/link";
+import { COMMON_TIMEZONES, formatInTimezone, getDefaultTimezone } from "@/lib/timezone";
 
 type XCredentialsSet = {
   hasClientId?: boolean;
@@ -39,6 +47,7 @@ type Settings = {
   UTM_TEMPLATE?: string;
   SIMULATION_MODE?: boolean | string;
   TIMEZONE?: string;
+  USER_TIMEZONE?: string;
   IS_ADMIN?: boolean;
 };
 
@@ -391,6 +400,42 @@ export function SettingsForm() {
               Enable simulation mode
             </label>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Timezone</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Your timezone for scheduling posts. All times will be shown in this timezone.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Field>
+            <FieldLabel>Select your timezone</FieldLabel>
+            <Select
+              value={settings.USER_TIMEZONE ?? getDefaultTimezone()}
+              onValueChange={(value) => updateSetting("USER_TIMEZONE", value)}
+              disabled={saving}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select timezone" />
+              </SelectTrigger>
+              <SelectContent>
+                {COMMON_TIMEZONES.map((tz) => (
+                  <SelectItem key={tz} value={tz}>
+                    {tz.replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          {settings.USER_TIMEZONE && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Current time: {formatInTimezone(new Date(), settings.USER_TIMEZONE, "PPP p")}
+            </p>
+          )}
         </CardContent>
       </Card>
 

@@ -22,8 +22,9 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { MAX_TWEET_LENGTH, DEFAULT_TIMEZONE } from "@/lib/constants";
 import { format, addDays, startOfDay } from "date-fns";
+import { parseTimeInTimezone, convertToUTC, extractTimeInTimezone, formatInTimezone } from "@/lib/timezone";
 import { toast } from "sonner";
-import { SaveIcon, CalendarIcon, PlusIcon, TrashIcon } from "lucide-react";
+import { SaveIcon, CalendarIcon, PlusIcon, TrashIcon, HelpCircleIcon, ExternalLinkIcon, CheckCircle2Icon, XCircleIcon } from "lucide-react";
 
 const HOOK_IDEAS = [
   "The one thing that changed everything...",
@@ -61,10 +62,14 @@ export function ComposerForm({ searchParams, onSuccess }: ComposerFormProps) {
   const [threadMode, setThreadMode] = useState(false);
   const [threadTexts, setThreadTexts] = useState<string[]>([""]);
   const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
-  const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
+  const [userTimezone, setUserTimezone] = useState<string>(DEFAULT_TIMEZONE);
   const [tags, setTags] = useState("");
   const [loading, setLoading] = useState(false);
   const [showHelpers, setShowHelpers] = useState(false);
+  const [communityId, setCommunityId] = useState<string | null>(null);
+  const [showCommunityInput, setShowCommunityInput] = useState(false);
+  const [manualCommunityId, setManualCommunityId] = useState("");
+  const [showCommunityHelp, setShowCommunityHelp] = useState(false);
   const [previewUser, setPreviewUser] = useState<{
     username?: string | null;
     name?: string | null;
@@ -85,14 +90,26 @@ export function ComposerForm({ searchParams, onSuccess }: ComposerFormProps) {
   }, []);
 
   useEffect(() => {
+    fetch("/api/user/me")
+      .then((r) => r.json())
+      .then((data: { timezone?: string }) => {
+        if (data.timezone) {
+          setUserTimezone(data.timezone);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
     if (!editId) return;
     fetch(`/api/posts/${editId}`)
       .then((r) => r.json())
-      .then((post: { text?: string; threadJson?: string | null; scheduledAt?: string | null; tags?: string; error?: string }) => {
+      .then((post: { text?: string; threadJson?: string | null; scheduledAt?: string | null; tags?: string; communityId?: string | null; error?: string }) => {
         if (post && post.text !== undefined) {
           setText(post.text);
           setTags(post.tags || "");
           setScheduledAt(post.scheduledAt ? new Date(post.scheduledAt) : null);
+          setCommunityId(post.communityId || null);
           if (post.threadJson) {
             try {
               const arr = JSON.parse(post.threadJson) as string[];
@@ -128,6 +145,7 @@ export function ComposerForm({ searchParams, onSuccess }: ComposerFormProps) {
         threadJson: threadMode ? JSON.stringify(threadTexts.filter(Boolean)) : null,
         tags,
         status: "DRAFT",
+        communityId,
       };
       const url = editId ? `/api/posts/${editId}` : "/api/posts";
       const method = editId ? "PATCH" : "POST";
@@ -165,6 +183,7 @@ export function ComposerForm({ searchParams, onSuccess }: ComposerFormProps) {
         scheduledAt: scheduledAt.toISOString(),
         tags,
         status: "SCHEDULED",
+        communityId,
       };
       const url = editId ? `/api/posts/${editId}` : "/api/posts";
       const method = editId ? "PATCH" : "POST";
@@ -202,6 +221,7 @@ export function ComposerForm({ searchParams, onSuccess }: ComposerFormProps) {
             threadJson: threadMode ? JSON.stringify(threadTexts.filter(Boolean)) : null,
             tags,
             status: "DRAFT",
+            communityId,
           }),
         });
         if (!createRes.ok) throw new Error("Failed to create");
@@ -229,6 +249,14 @@ export function ComposerForm({ searchParams, onSuccess }: ComposerFormProps) {
       next[i] = v;
       return next;
     });
+
+  const validateCommunityId = (id: string): { valid: boolean; error?: string } => {
+    if (!id.trim()) return { valid: false, error: "Community ID is required" };
+    if (!/^\d{1,19}$/.test(id.trim())) {
+      return { valid: false, error: "Invalid format. Must be 1-19 digits (e.g., 1234567890)" };
+    }
+    return { valid: true };
+  };
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -362,7 +390,7 @@ export function ComposerForm({ searchParams, onSuccess }: ComposerFormProps) {
                 <Button variant="outline" className="w-full justify-start">
                   <CalendarIcon className="mr-2 size-4" />
                   {scheduledAt
-                    ? format(scheduledAt, "PPP p")
+                    ? formatInTimezone(scheduledAt, userTimezone, "PPP p")
                     : "Pick date and time"}
                 </Button>
               </PopoverTrigger>
@@ -376,32 +404,27 @@ export function ComposerForm({ searchParams, onSuccess }: ComposerFormProps) {
                 <div className="flex gap-2 border-t p-2">
                   <Input
                     type="time"
+                    value={
+                      scheduledAt
+                        ? extractTimeInTimezone(scheduledAt, userTimezone)
+                        : ""
+                    }
                     onChange={(e) => {
-                      const [h, m] = e.target.value.split(":").map(Number);
-                      const d = scheduledAt ?? addDays(new Date(), 1);
-                      d.setHours(h, m, 0, 0);
-                      setScheduledAt(new Date(d));
+                      const timeString = e.target.value;
+                      const baseDate = scheduledAt ?? addDays(new Date(), 1);
+
+                      // Parse time in user's timezone
+                      const dateInUserTz = parseTimeInTimezone(timeString, baseDate, userTimezone);
+
+                      // Convert to UTC for storage
+                      const utcDate = convertToUTC(dateInUserTz, userTimezone);
+
+                      setScheduledAt(utcDate);
                     }}
                   />
                 </div>
               </PopoverContent>
             </Popover>
-          </Field>
-
-          <Field>
-            <FieldLabel>Timezone</FieldLabel>
-            <Select value={timezone} onValueChange={setTimezone}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Europe/Madrid">Europe/Madrid</SelectItem>
-                <SelectItem value="Europe/London">Europe/London</SelectItem>
-                <SelectItem value="America/New_York">America/New_York</SelectItem>
-                <SelectItem value="America/Los_Angeles">America/Los_Angeles</SelectItem>
-                <SelectItem value="UTC">UTC</SelectItem>
-              </SelectContent>
-            </Select>
           </Field>
 
           <Field>
@@ -411,6 +434,167 @@ export function ComposerForm({ searchParams, onSuccess }: ComposerFormProps) {
               onChange={(e) => setTags(e.target.value)}
               placeholder="build, ship, learn"
             />
+          </Field>
+
+          <Field>
+            <FieldLabel>Post Destination</FieldLabel>
+            <div className="space-y-2">
+              {/* Main options: Regular feed or Community */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={communityId ? "outline" : "default"}
+                  size="sm"
+                  onClick={() => {
+                    setCommunityId(null);
+                    setShowCommunityInput(false);
+                  }}
+                  className="flex-1"
+                >
+                  Regular Feed
+                </Button>
+                <Button
+                  type="button"
+                  variant={communityId ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowCommunityInput(true)}
+                  className="flex-1"
+                >
+                  Community
+                </Button>
+              </div>
+
+              {/* Manual Community ID input */}
+              {showCommunityInput && (
+                <div className="space-y-3 p-3 border border-border rounded-md bg-muted/30">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium mb-1">Enter Community ID</p>
+                      <p className="text-xs text-muted-foreground">
+                        19-digit numeric ID from the community URL
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => setShowCommunityHelp(!showCommunityHelp)}
+                      className="shrink-0"
+                    >
+                      <HelpCircleIcon className="size-4" />
+                    </Button>
+                  </div>
+
+                  {/* Help section */}
+                  {showCommunityHelp && (
+                    <div className="space-y-2 p-3 bg-background rounded border border-border">
+                      <p className="text-xs font-medium">How to find Community ID:</p>
+                      <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                        <li>Go to X and navigate to your community</li>
+                        <li>Look at the URL in your browser</li>
+                        <li>Copy the numbers after <code className="bg-muted px-1 py-0.5 rounded text-[10px]">/communities/</code></li>
+                      </ol>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Example URL: <code className="bg-muted px-1 py-0.5 rounded text-[10px]">twitter.com/i/communities/1234567890</code>
+                      </p>
+                      <a
+                        href="https://twitter.com/i/communities"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
+                      >
+                        Open X Communities
+                        <ExternalLinkIcon className="size-3" />
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Input field with validation */}
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <Input
+                          value={manualCommunityId}
+                          onChange={(e) => setManualCommunityId(e.target.value)}
+                          placeholder="1234567890123456789"
+                          className="pr-8"
+                        />
+                        {manualCommunityId && (
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            {validateCommunityId(manualCommunityId).valid ? (
+                              <CheckCircle2Icon className="size-4 text-green-500" />
+                            ) : (
+                              <XCircleIcon className="size-4 text-destructive" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const validation = validateCommunityId(manualCommunityId);
+                          if (validation.valid) {
+                            setCommunityId(manualCommunityId.trim());
+                            setShowCommunityInput(false);
+                            setManualCommunityId("");
+                            toast.success(`Community ID set: ${manualCommunityId.trim()}`);
+                          } else {
+                            toast.error(validation.error || "Invalid Community ID");
+                          }
+                        }}
+                        disabled={!manualCommunityId.trim()}
+                      >
+                        Set
+                      </Button>
+                    </div>
+                    {manualCommunityId && !validateCommunityId(manualCommunityId).valid && (
+                      <p className="text-xs text-destructive">
+                        {validateCommunityId(manualCommunityId).error}
+                      </p>
+                    )}
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowCommunityInput(false);
+                      setManualCommunityId("");
+                      setShowCommunityHelp(false);
+                    }}
+                    className="w-full"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+
+              {/* Show current community ID with edit option */}
+              {communityId && !showCommunityInput && (
+                <div className="flex items-center justify-between p-2 bg-muted/50 rounded border border-border">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2Icon className="size-4 text-green-500" />
+                    <p className="text-xs text-muted-foreground">
+                      Community: <code className="bg-muted px-1 py-0.5 rounded font-mono">{communityId}</code>
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => {
+                      setManualCommunityId(communityId);
+                      setShowCommunityInput(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                </div>
+              )}
+            </div>
           </Field>
 
           <div className="flex flex-wrap gap-2">
