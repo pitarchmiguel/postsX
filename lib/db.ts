@@ -56,7 +56,7 @@ const prismaClientSingleton = () => new PrismaClient({ adapter });
 
 declare global {
   // eslint-disable-next-line no-var
-  var prisma: PrismaClient | undefined;
+  var prisma: any;
 }
 
 export const db = globalThis.prisma ?? prismaClientSingleton();
