@@ -12,7 +12,9 @@ import { createHash, randomBytes } from "node:crypto";
 
 const X_AUTH_URL = "https://twitter.com/i/oauth2/authorize";
 const X_TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
-const SCOPES = ["tweet.read", "tweet.write", "users.read", "community.read"];
+// Basic scopes that should work with most X apps
+// Remove "community.read" if your app doesn't have Community access enabled
+const SCOPES = ["tweet.read", "tweet.write", "users.read"];
 
 function base64UrlEncode(buf: Buffer): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");

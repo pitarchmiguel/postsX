@@ -15,22 +15,48 @@ function getRedirectUri(request: NextRequest): string {
 }
 
 export async function GET(request: NextRequest) {
-  // Authenticate user before initiating OAuth
-  const user = await getCurrentUser();
-  if (!user) {
-    return Response.redirect(
-      new URL("/settings?error=Not+authenticated", request.url)
-    );
-  }
+  try {
+    // Authenticate user before initiating OAuth
+    const user = await getCurrentUser();
+    if (!user) {
+      return Response.redirect(
+        new URL("/settings?error=Not+authenticated", request.url)
+      );
+    }
 
-  const clientId =
-    process.env.X_CLIENT_ID ||
-    (await db.setting.findUnique({ where: { key: "X_CLIENT_ID" } }))?.valueJson?.trim();
-  const clientSecret =
-    process.env.X_CLIENT_SECRET ||
-    (await db.setting.findUnique({ where: { key: "X_CLIENT_SECRET" } }))?.valueJson?.trim();
+  // Helper to safely extract setting value
+  const getSetting = (setting: { valueJson: string } | null): string | null => {
+    if (!setting?.valueJson) return null;
+    const raw = setting.valueJson;
+    // Handle both plain strings and JSON-stringified strings
+    try {
+      const parsed = JSON.parse(raw);
+      return typeof parsed === "string" ? parsed.trim() : null;
+    } catch {
+      return raw.trim();
+    }
+  };
+
+  const clientIdSetting = await db.setting.findUnique({ where: { key: "X_CLIENT_ID" } });
+  const clientSecretSetting = await db.setting.findUnique({ where: { key: "X_CLIENT_SECRET" } });
+
+  const clientId = process.env.X_CLIENT_ID || getSetting(clientIdSetting);
+  const clientSecret = process.env.X_CLIENT_SECRET || getSetting(clientSecretSetting);
+
+  console.log("[X OAuth] Initiating OAuth flow", {
+    hasEnvClientId: !!process.env.X_CLIENT_ID,
+    hasDbClientId: !!getSetting(clientIdSetting),
+    clientIdLength: clientId?.length,
+    clientSecretLength: clientSecret?.length,
+    redirectUri: getRedirectUri(request),
+    userId: user.id,
+  });
 
   if (!clientId || !clientSecret) {
+    console.error("[X OAuth] Missing credentials", {
+      hasClientId: !!clientId,
+      hasClientSecret: !!clientSecret,
+    });
     return Response.redirect(
       new URL("/settings?error=Configure+Client+ID+and+Client+Secret+first", request.url)
     );
@@ -60,5 +86,20 @@ export async function GET(request: NextRequest) {
     state,
   });
 
+  console.log("[X OAuth] Redirecting to X", {
+    authUrlLength: authUrl.length,
+    authUrlDomain: new URL(authUrl).hostname,
+  });
+
   return Response.redirect(authUrl);
+  } catch (error) {
+    console.error("[X OAuth] Error in auth flow", {
+      error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
+    return Response.redirect(
+      new URL("/settings?error=" + encodeURIComponent("OAuth initialization failed: " + String(error)), request.url)
+    );
+  }
 }

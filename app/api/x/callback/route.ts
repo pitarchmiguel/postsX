@@ -68,26 +68,62 @@ export async function GET(request: NextRequest) {
     return Response.redirect(baseUrl);
   }
 
-  const clientId =
-    process.env.X_CLIENT_ID ||
-    (await db.setting.findUnique({ where: { key: "X_CLIENT_ID" } }))?.valueJson?.trim();
-  const clientSecret =
-    process.env.X_CLIENT_SECRET ||
-    (await db.setting.findUnique({ where: { key: "X_CLIENT_SECRET" } }))?.valueJson?.trim();
+  // Helper to safely extract setting value
+  const getSetting = (setting: { valueJson: string } | null): string | null => {
+    if (!setting?.valueJson) return null;
+    const raw = setting.valueJson;
+    // Handle both plain strings and JSON-stringified strings
+    try {
+      const parsed = JSON.parse(raw);
+      return typeof parsed === "string" ? parsed.trim() : null;
+    } catch {
+      return raw.trim();
+    }
+  };
+
+  const clientIdSetting = await db.setting.findUnique({ where: { key: "X_CLIENT_ID" } });
+  const clientSecretSetting = await db.setting.findUnique({ where: { key: "X_CLIENT_SECRET" } });
+
+  const clientId = process.env.X_CLIENT_ID || getSetting(clientIdSetting);
+  const clientSecret = process.env.X_CLIENT_SECRET || getSetting(clientSecretSetting);
+
+  console.log("[X OAuth] Processing callback", {
+    hasCode: !!code,
+    hasState: !!state,
+    hasClientId: !!clientId,
+    hasClientSecret: !!clientSecret,
+    userId: user.id,
+  });
 
   if (!clientId || !clientSecret) {
+    console.error("[X OAuth] Missing credentials in callback", {
+      hasClientId: !!clientId,
+      hasClientSecret: !!clientSecret,
+    });
     baseUrl.searchParams.set("error", "Client+credentials+not+configured");
     return Response.redirect(baseUrl);
   }
 
   try {
     const redirectUri = getRedirectUri(request);
+
+    console.log("[X OAuth] Exchanging code for tokens", {
+      codeLength: code.length,
+      redirectUri,
+      clientIdPrefix: clientId?.substring(0, 10),
+    });
+
     const { accessToken, refreshToken } = await exchangeCodeForTokens({
       clientId,
       clientSecret,
       code,
       codeVerifier: pkce.codeVerifier,
       redirectUri,
+    });
+
+    console.log("[X OAuth] Tokens received", {
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
     });
 
     // Save tokens to User table (per-user)
@@ -113,8 +149,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    console.log("[X OAuth] Connection successful", {
+      username: verify.username,
+      userId: user.id,
+    });
+
     baseUrl.searchParams.set("connected", verify.username || "1");
   } catch (err) {
+    console.error("[X OAuth] Token exchange failed", {
+      error: err,
+      errorMessage: String(err),
+      userId: user.id,
+    });
     baseUrl.searchParams.set("error", encodeURIComponent(String(err)));
   }
 
