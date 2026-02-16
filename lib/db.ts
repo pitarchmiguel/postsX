@@ -40,28 +40,53 @@ if (
   console.log('[DB] Platform:', process.env.VERCEL ? 'Vercel' : 'Local');
 }
 
-const adapter = new PrismaPg({
-  connectionString,
-  // Configure pg pool for serverless (single connection, aggressive timeouts)
-  pool: {
-    max: 1, // Match connection_limit=1 in URL params
-    min: 0, // Don't maintain idle connections
-    idleTimeoutMillis: 1000, // Close idle connections after 1 second
-    connectionTimeoutMillis: 30000, // 30 seconds to establish connection
-    allowExitOnIdle: true, // Allow process to exit when no active connections
+const prismaClientSingleton = () => {
+  try {
+    console.log('[DB] Initializing Prisma adapter...');
+    const adapter = new PrismaPg({
+      connectionString,
+      // Configure pg pool for serverless (single connection, aggressive timeouts)
+      pool: {
+        max: 1, // Match connection_limit=1 in URL params
+        min: 0, // Don't maintain idle connections
+        idleTimeoutMillis: 1000, // Close idle connections after 1 second
+        connectionTimeoutMillis: 30000, // 30 seconds to establish connection
+        allowExitOnIdle: true, // Allow process to exit when no active connections
+      }
+    });
+    console.log('[DB] ✅ Adapter initialized successfully');
+    return new PrismaClient({ adapter });
+  } catch (error) {
+    console.error('[DB] ⚠️ Adapter initialization failed, falling back to default Prisma client:', error);
+    // Fallback to default PrismaClient without adapter (uses DATABASE_URL env var)
+    return new PrismaClient();
   }
-});
-
-const prismaClientSingleton = () => new PrismaClient({ adapter });
+};
 
 declare global {
   // eslint-disable-next-line no-var
-  var prisma: any;
+  var prisma: PrismaClient | undefined;
 }
 
-export const db = globalThis.prisma ?? prismaClientSingleton();
+// Initialize db - always ensure it's defined
+let db: PrismaClient;
 
-if (process.env.NODE_ENV !== "production") globalThis.prisma = db;
+if (process.env.NODE_ENV !== "production") {
+  if (!globalThis.prisma) {
+    globalThis.prisma = prismaClientSingleton();
+  }
+  db = globalThis.prisma;
+} else {
+  db = prismaClientSingleton();
+}
+
+// Ensure db is always exported and never undefined
+if (!db) {
+  console.error('[DB] ❌ CRITICAL: Prisma client is undefined!');
+  throw new Error('Failed to initialize Prisma client');
+}
+
+export { db };
 
 // Test connection on first initialization (only in dev or first time in production)
 if (process.env.VERCEL && !globalThis.prisma) {
