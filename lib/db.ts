@@ -67,5 +67,5 @@ if (process.env.NODE_ENV !== "production") globalThis.prisma = db;
 if (process.env.VERCEL && !globalThis.prisma) {
   db.$connect()
     .then(() => console.log('[DB] ✅ Connection successful'))
-    .catch((err) => console.error('[DB] ❌ Connection failed:', err.message));
+    .catch((err: Error) => console.error('[DB] ❌ Connection failed:', err.message));
 }

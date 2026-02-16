@@ -28,7 +28,7 @@ function endOfWeek(date: Date): Date {
   return d;
 }
 
-export async function getDashboardStats() {
+export async function getDashboardStats(userId: string) {
   const now = new Date();
   const weekStart = startOfWeek(now);
   const weekEnd = endOfWeek(now);
@@ -39,19 +39,27 @@ export async function getDashboardStats() {
     await Promise.all([
       db.post.count({
         where: {
+          userId: userId,
           status: "SCHEDULED",
           scheduledAt: { gte: weekStart, lte: weekEnd },
         },
       }),
       db.post.count({
         where: {
+          userId: userId,
           status: "PUBLISHED",
           publishedAt: { gte: weekStart, lte: weekEnd },
         },
       }),
-      db.post.count({ where: { status: "DRAFT" } }),
+      db.post.count({
+        where: {
+          userId: userId,
+          status: "DRAFT",
+        },
+      }),
       db.post.findMany({
         where: {
+          userId: userId,
           status: "SCHEDULED",
           scheduledAt: { gte: todayStart, lte: todayEnd },
         },
@@ -59,6 +67,7 @@ export async function getDashboardStats() {
       }),
       db.post.findMany({
         where: {
+          userId: userId,
           status: "SCHEDULED",
           scheduledAt: { gte: now },
         },
@@ -70,7 +79,12 @@ export async function getDashboardStats() {
   // Best time slots from metrics
   const metrics = await db.metric.findMany({
     include: { post: true },
-    where: { post: { status: "PUBLISHED" } },
+    where: {
+      post: {
+        status: "PUBLISHED",
+        userId: userId,
+      },
+    },
   });
 
   const hourEngagement: Record<number, { total: number; count: number }> = {};
@@ -95,11 +109,11 @@ export async function getDashboardStats() {
     .map((s) => `${s.hour}:00`);
 
   // Consistency plan: compare weekend vs weekday engagement
-  const weekdayMetrics = metrics.filter((m) => {
+  const weekdayMetrics = metrics.filter((m: typeof metrics[0]) => {
     const d = m.post.publishedAt ? new Date(m.post.publishedAt).getDay() : -1;
     return d >= 1 && d <= 5;
   });
-  const weekendMetrics = metrics.filter((m) => {
+  const weekendMetrics = metrics.filter((m: typeof metrics[0]) => {
     const d = m.post.publishedAt ? new Date(m.post.publishedAt).getDay() : -1;
     return d === 0 || d === 6;
   });
@@ -107,7 +121,7 @@ export async function getDashboardStats() {
   const weekdayAvg =
     weekdayMetrics.length > 0
       ? weekdayMetrics.reduce(
-          (s, m) =>
+          (s: number, m: typeof weekdayMetrics[0]) =>
             s + m.impressions + m.likes * 2 + m.replies * 3 + m.reposts * 2 + m.bookmarks,
           0
         ) / weekdayMetrics.length
@@ -115,7 +129,7 @@ export async function getDashboardStats() {
   const weekendAvg =
     weekendMetrics.length > 0
       ? weekendMetrics.reduce(
-          (s, m) =>
+          (s: number, m: typeof weekendMetrics[0]) =>
             s + m.impressions + m.likes * 2 + m.replies * 3 + m.reposts * 2 + m.bookmarks,
           0
         ) / weekendMetrics.length

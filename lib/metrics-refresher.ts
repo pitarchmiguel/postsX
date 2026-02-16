@@ -51,7 +51,7 @@ export async function refreshMetrics(): Promise<RefreshResult> {
   });
 
   // Filter out mock tweets
-  const realPosts = posts.filter((p) => p.xTweetId && !p.xTweetId.startsWith("mock_"));
+  const realPosts = posts.filter((p: typeof posts[0]) => p.xTweetId && !p.xTweetId.startsWith("mock_"));
 
   console.log(`Found ${realPosts.length} real posts to refresh (out of ${posts.length} total)`);
 
@@ -78,7 +78,7 @@ export async function refreshMetrics(): Promise<RefreshResult> {
 
     try {
       // Fetch real metrics from X API
-      const metrics = await getTweetMetrics(post.xTweetId);
+      const metrics = await getTweetMetrics(post.userId, post.xTweetId);
       recordRequest(); // Track this API call
 
       // Extract metric values

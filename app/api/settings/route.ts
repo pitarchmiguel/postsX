@@ -51,7 +51,7 @@ async function isXApiConfiguredFromDb(): Promise<boolean> {
       key: { in: ["X_ACCESS_TOKEN", "X_CLIENT_ID"] },
     },
   });
-  return settings.some((s) => s.valueJson && s.valueJson !== "{}" && s.valueJson !== "");
+  return settings.some((s: typeof settings[0]) => s.valueJson && s.valueJson !== "{}" && s.valueJson !== "");
 }
 
 export async function GET() {
