@@ -10,6 +10,9 @@
     }
   ],
   "functions": {
+    "app/api/scheduler/run/route.ts": {
+      "maxDuration": 30
+    },
     "app/(dashboard)/dashboard/page.tsx": {
       "maxDuration": 10
     },

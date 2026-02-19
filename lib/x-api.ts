@@ -16,6 +16,19 @@ export async function isXApiConfigured(userId: string): Promise<boolean> {
   return !!user?.xAccessToken || !!user?.xClientId;
 }
 
+async function getClientSecret(): Promise<string | null> {
+  if (process.env.X_CLIENT_SECRET) return process.env.X_CLIENT_SECRET;
+  const { db } = await import("@/lib/db");
+  const setting = await db.setting.findUnique({ where: { key: "X_CLIENT_SECRET" } });
+  if (!setting?.valueJson) return null;
+  try {
+    const parsed = JSON.parse(setting.valueJson);
+    return typeof parsed === "string" ? parsed.trim() : null;
+  } catch {
+    return setting.valueJson.trim();
+  }
+}
+
 async function getXApiConfig(userId: string): Promise<{
   accessToken?: string;
   clientId?: string;
@@ -23,12 +36,57 @@ async function getXApiConfig(userId: string): Promise<{
   const { db } = await import("@/lib/db");
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { xAccessToken: true, xClientId: true },
+    select: {
+      xAccessToken: true,
+      xClientId: true,
+      xRefreshToken: true,
+      xTokenExpiresAt: true,
+    },
   });
 
+  if (!user?.xAccessToken) {
+    return { accessToken: undefined, clientId: user?.xClientId || undefined };
+  }
+
+  // Auto-refresh if token expires within 5 minutes
+  const expiresAt = user.xTokenExpiresAt;
+  const expiresWithin5min = expiresAt
+    ? expiresAt.getTime() - Date.now() < 5 * 60 * 1000
+    : false;
+
+  if (expiresWithin5min && user.xRefreshToken && user.xClientId) {
+    try {
+      const clientSecret = await getClientSecret();
+      if (clientSecret) {
+        const { refreshXToken } = await import("@/lib/x-oauth");
+        const refreshed = await refreshXToken({
+          clientId: user.xClientId,
+          clientSecret,
+          refreshToken: user.xRefreshToken,
+        });
+        const newExpiresAt = refreshed.expiresIn
+          ? new Date(Date.now() + refreshed.expiresIn * 1000)
+          : null;
+        await db.user.update({
+          where: { id: userId },
+          data: {
+            xAccessToken: refreshed.accessToken,
+            xRefreshToken: refreshed.refreshToken ?? user.xRefreshToken,
+            xTokenExpiresAt: newExpiresAt,
+          },
+        });
+        console.log(`[X API] Token refreshed for user ${userId}, expires ${newExpiresAt?.toISOString()}`);
+        return { accessToken: refreshed.accessToken, clientId: user.xClientId };
+      }
+    } catch (err) {
+      console.error(`[X API] Token refresh failed for user ${userId}:`, err);
+      // Fall through — try with existing token, it may still work
+    }
+  }
+
   return {
-    accessToken: user?.xAccessToken || undefined,
-    clientId: user?.xClientId || undefined,
+    accessToken: user.xAccessToken,
+    clientId: user.xClientId || undefined,
   };
 }
 
@@ -144,6 +202,58 @@ export async function postTweet(
     console.error("X API postTweet error:", err);
     throw err;
   }
+}
+
+export async function postThread(
+  userId: string,
+  texts: string[],
+  options?: { forceSimulation?: boolean; communityId?: string | null }
+): Promise<{ id: string } | null> {
+  if (texts.length <= 1) {
+    return postTweet(userId, texts[0] ?? "", options);
+  }
+  if (options?.forceSimulation) {
+    return { id: `mock_${Date.now()}` };
+  }
+  const config = await getXApiConfig(userId);
+  if (!config.accessToken) {
+    return postTweet(userId, texts[0], options);
+  }
+
+  let previousId: string | null = null;
+  let firstId: string | null = null;
+
+  for (const text of texts) {
+    const body: Record<string, unknown> = { text };
+    if (previousId) {
+      body.reply = { in_reply_to_tweet_id: previousId };
+    }
+    if (!previousId && options?.communityId) {
+      body.community_id = options.communityId;
+    }
+
+    const res = await fetch(`${X_API_BASE}/tweets`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.accessToken}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { detail?: string }).detail || res.statusText);
+    }
+
+    const data = (await res.json()) as { data?: { id: string } };
+    const id = data.data?.id;
+    if (!id) throw new Error("No tweet ID returned");
+    if (!firstId) firstId = id;
+    previousId = id;
+  }
+
+  return firstId ? { id: firstId } : null;
 }
 
 export type MetricsSource = "real" | "simulated" | "unavailable";

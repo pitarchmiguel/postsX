@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
       clientIdPrefix: clientId?.substring(0, 10),
     });
 
-    const { accessToken, refreshToken } = await exchangeCodeForTokens({
+    const { accessToken, refreshToken, expiresIn } = await exchangeCodeForTokens({
       clientId,
       clientSecret,
       code,
@@ -150,6 +150,7 @@ export async function GET(request: NextRequest) {
         xAccessToken: accessToken,
         xRefreshToken: refreshToken || null,
         xClientId: clientId,
+        xTokenExpiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : null,
       },
     });
 

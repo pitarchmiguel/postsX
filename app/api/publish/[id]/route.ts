@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { postTweet, isXApiConfigured } from "@/lib/x-api";
+import { postThread, isXApiConfigured, getTweetMetrics } from "@/lib/x-api";
 import { requireUser } from "@/lib/auth";
 
 async function getSimulationMode(): Promise<boolean> {
@@ -9,6 +9,19 @@ async function getSimulationMode(): Promise<boolean> {
   });
   const val = setting?.valueJson ?? "true";
   return val === "true";
+}
+
+function parseThreadTexts(post: { text: string; threadJson: string | null }): string[] {
+  if (!post.threadJson) return [post.text];
+  try {
+    const parsed = JSON.parse(post.threadJson) as unknown;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.filter((t): t is string => typeof t === "string" && t.length > 0);
+    }
+  } catch {
+    // fall through
+  }
+  return [post.text];
 }
 
 export async function POST(
@@ -44,8 +57,10 @@ export async function POST(
     let tweetId: string;
     let simulated = false;
 
+    const texts = parseThreadTexts(post);
+
     if (!xApiConfigured || simulationMode) {
-      const result = await postTweet(user.id, post.text, {
+      const result = await postThread(user.id, texts, {
         forceSimulation: simulationMode,
         communityId: post.communityId,
       });
@@ -53,7 +68,7 @@ export async function POST(
       simulated = true;
     } else {
       try {
-        const result = await postTweet(user.id, post.text, {
+        const result = await postThread(user.id, texts, {
           communityId: post.communityId,
         });
         if (!result) throw new Error("No tweet ID returned");
@@ -91,21 +106,23 @@ export async function POST(
       },
     });
 
-    const { getTweetMetrics } = await import("@/lib/x-api");
-    const metrics = await getTweetMetrics(user.id, tweetId);
-
-    // Extract only the metric fields (exclude source and error)
-    const { impressions, likes, replies, reposts, bookmarks } = metrics;
-    await db.metric.create({
-      data: {
-        postId: id,
-        impressions,
-        likes,
-        replies,
-        reposts,
-        bookmarks,
-      },
-    });
+    // Metric creation is best-effort — a failure here must NOT affect the publish response
+    try {
+      const metrics = await getTweetMetrics(user.id, tweetId);
+      const { impressions, likes, replies, reposts, bookmarks } = metrics;
+      await db.metric.create({
+        data: {
+          postId: id,
+          impressions,
+          likes,
+          replies,
+          reposts,
+          bookmarks,
+        },
+      });
+    } catch (metricErr) {
+      console.error("Failed to record metrics for post", id, metricErr);
+    }
 
     return Response.json({
       success: true,
