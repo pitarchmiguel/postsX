@@ -8,6 +8,10 @@ import { getCurrentUser } from "@/lib/auth";
 const PKCE_COOKIE = "x_oauth_pkce";
 
 function getRedirectUri(request: NextRequest): string {
+  // Use explicit app URL env var if set (most reliable in production)
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/api/x/callback`;
+  }
   const host = request.headers.get("host") || "localhost:3000";
   const proto = request.headers.get("x-forwarded-proto") || "http";
   return `${proto}://${host}/api/x/callback`;
@@ -109,6 +113,10 @@ export async function GET(request: NextRequest) {
     hasState: !!state,
     hasClientId: !!clientId,
     hasClientSecret: !!clientSecret,
+    clientIdSource: process.env.X_CLIENT_ID ? "env" : "db",
+    clientSecretSource: process.env.X_CLIENT_SECRET ? "env" : "db",
+    clientIdPrefix: clientId?.substring(0, 10),
+    redirectUri: getRedirectUri(request),
     userId: user.id,
   });
 

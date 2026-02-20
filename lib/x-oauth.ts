@@ -67,8 +67,25 @@ export async function exchangeCodeForTokens(params: {
     body: body.toString(),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error_description?: string }).error_description || res.statusText);
+    const body = await res.text().catch(() => "");
+    let errMsg = res.statusText;
+    try {
+      const err = JSON.parse(body) as { error?: string; error_description?: string };
+      errMsg = err.error_description || err.error || res.statusText;
+      console.error("[X OAuth] exchangeCodeForTokens failed", {
+        status: res.status,
+        error: err.error,
+        error_description: err.error_description,
+        redirectUri: params.redirectUri,
+        clientIdPrefix: params.clientId?.substring(0, 10),
+      });
+    } catch {
+      console.error("[X OAuth] exchangeCodeForTokens failed (non-JSON)", {
+        status: res.status,
+        body: body.substring(0, 500),
+      });
+    }
+    throw new Error(errMsg || `HTTP ${res.status}`);
   }
   const data = (await res.json()) as {
     access_token: string;

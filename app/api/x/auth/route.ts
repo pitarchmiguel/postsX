@@ -8,10 +8,13 @@ const PKCE_COOKIE = "x_oauth_pkce";
 const PKCE_MAX_AGE = 600; // 10 min
 
 function getRedirectUri(request: NextRequest): string {
+  // Use explicit app URL env var if set (most reliable in production)
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/api/x/callback`;
+  }
   const host = request.headers.get("host") || "localhost:3000";
   const proto = request.headers.get("x-forwarded-proto") || "http";
-  const base = `${proto}://${host}`;
-  return `${base}/api/x/callback`;
+  return `${proto}://${host}/api/x/callback`;
 }
 
 export async function GET(request: NextRequest) {
