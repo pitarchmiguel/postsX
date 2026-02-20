@@ -20,6 +20,9 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 export const metadata: Metadata = {
   title: "X Post Scheduler",
   description: "Schedule and manage X (Twitter) posts",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

@@ -13,6 +13,7 @@ export interface PostCreateInput {
   scheduledAt?: string | null;
   tags?: string;
   status?: PostStatus;
+  communityId?: string | null;
 }
 
 export interface PostUpdateInput {
@@ -21,6 +22,14 @@ export interface PostUpdateInput {
   scheduledAt?: string | null;
   tags?: string;
   status?: PostStatus;
+  communityId?: string | null;
+}
+
+export interface XCommunity {
+  id: string;
+  name: string;
+  description?: string;
+  member_count?: number;
 }
 
 export interface SettingKeys {

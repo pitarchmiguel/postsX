@@ -32,14 +32,9 @@ export default async function Home() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8 text-center">
-        <div className="space-y-2">
-          <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-            Schedule everything and grow fast on X
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Planifica tus publicaciones y mantén la consistencia
-          </p>
-        </div>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+          Schedule everything and grow fast on X
+        </h1>
         <LoginForm />
       </div>
     </div>
